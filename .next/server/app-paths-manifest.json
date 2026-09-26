@@ -1,0 +1,8 @@
+{
+  "/page": "app/page.js",
+  "/marketplace/page": "app/marketplace/page.js",
+  "/initialize/page": "app/initialize/page.js",
+  "/(app)/execution/page": "app/(app)/execution/page.js",
+  "/(app)/negotiation/page": "app/(app)/negotiation/page.js",
+  "/(app)/settings/page": "app/(app)/settings/page.js"
+}
