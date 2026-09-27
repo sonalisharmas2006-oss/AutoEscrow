@@ -1,18 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import Script from "next/script";
 import { ArrowUpRight, ShieldCheck, Box, Cpu, Lock } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
-import Spline from "@splinetool/react-spline/next";
 
 export default function Home() {
   return (
     <main className="relative w-full bg-zinc-50 dark:bg-[#030305] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
       
+      {/* 1. SPLINE ENGINE SCRIPT (Loads normally without blocking UI) */}
+      <Script type="module" src="https://unpkg.com/@splinetool/viewer@1.0.94/build/spline-viewer.js" />
+
       {/* BACKGROUND 3D ROBOT */}
       <div className="fixed inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-auto">
-        <div className="w-full h-full scale-[1.25] md:scale-[1.4] translate-y-[10%] opacity-40 dark:opacity-100 transition-opacity duration-500">
-          <Spline scene="https://prod.spline.design/vMHPwDXhoa3PUz8P/scene.splinecode" />
+        <div className="w-full h-full scale-[1.25] md:scale-[1.4] translate-y-[10%] opacity-40 dark:opacity-100 transition-opacity duration-1000">
+          {/* @ts-ignore - Custom Web Component */}
+          <spline-viewer url="https://prod.spline.design/vMHPwDXhoa3PUz8P/scene.splinecode"></spline-viewer>
         </div>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(250,250,250,0.75)_0%,#fafafa_90%)] dark:bg-[radial-gradient(circle_at_center,rgba(3,3,5,0.75)_0%,#030305_90%)] pointer-events-none transition-colors duration-500" />
       </div>
@@ -20,6 +24,7 @@ export default function Home() {
       <Sidebar />
       <TopBar />
 
+      {/* CONTENT (Renders Instantly) */}
       <div className="relative z-10 w-full md:pl-[80px]">
         
         {/* --- HERO SECTION --- */}
@@ -27,7 +32,7 @@ export default function Home() {
           <div className="max-w-[850px] flex flex-col items-center pointer-events-auto">
             
             <div className="inline-flex items-center gap-2.5 mb-8">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span className="text-[10px] font-semibold tracking-[0.2em] text-zinc-500 dark:text-zinc-400 uppercase">Verification Network Live</span>
             </div>
 
@@ -40,11 +45,11 @@ export default function Home() {
             </p>
 
             <div className="flex flex-col sm:flex-row items-center gap-4 mb-16">
-              <Link href="/initialize" className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-zinc-900 dark:bg-white px-8 py-4 text-sm font-semibold text-white dark:text-black transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 hover:scale-105 shadow-xl">
+              <Link href="/initialize" className="w-full sm:w-auto flex items-center justify-center gap-2 rounded-full bg-zinc-900 dark:bg-white px-8 py-4 text-sm font-semibold text-white dark:text-black transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 hover:scale-105 shadow-md">
                 Initialize Escrow
                 <ArrowUpRight size={18} strokeWidth={2} />
               </Link>
-              <Link href="/marketplace" className="w-full sm:w-auto rounded-full border border-zinc-200 dark:border-white/15 bg-white/50 dark:bg-black/40 backdrop-blur-xl px-8 py-4 text-sm font-medium text-zinc-900 dark:text-white transition-all hover:bg-zinc-100 dark:hover:bg-white/10 flex items-center justify-center gap-2 shadow-sm">
+              <Link href="/marketplace" className="w-full sm:w-auto rounded-full border border-zinc-200 dark:border-white/15 bg-white/50 dark:bg-black/40 backdrop-blur-md px-8 py-4 text-sm font-medium text-zinc-900 dark:text-white transition-all hover:bg-zinc-100 dark:hover:bg-white/10 flex items-center justify-center gap-2 shadow-sm">
                 <Box size={18} className="text-zinc-500 dark:text-zinc-400" />
                 Explore Marketplace
               </Link>
@@ -59,7 +64,7 @@ export default function Home() {
         </section>
 
         {/* --- FEATURES SECTION --- */}
-        <section className="relative z-20 w-full bg-white dark:bg-[#050508] px-6 py-36 border-t border-zinc-200 dark:border-white/10 shadow-[0_-30px_60px_rgba(0,0,0,0.05)] dark:shadow-[0_-30px_60px_rgba(0,0,0,0.9)] transition-colors duration-500">
+        <section className="relative z-20 w-full bg-white dark:bg-[#050508] px-6 py-36 border-t border-zinc-200 dark:border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.5)] transition-colors duration-500">
           <div className="max-w-6xl mx-auto">
             <div className="mb-20 text-center max-w-2xl mx-auto">
               <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4">
@@ -118,7 +123,7 @@ export default function Home() {
               ].map((st) => (
                 <div 
                   key={st.num} 
-                  className="group relative bg-white dark:bg-[#0a0a0f] border border-zinc-200 dark:border-white/10 p-8 rounded-3xl hover:border-zinc-300 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-[#12121a] transition-all duration-300 shadow-sm dark:shadow-xl flex flex-col justify-between"
+                  className="group relative bg-white dark:bg-[#0a0a0f] border border-zinc-200 dark:border-white/10 p-8 rounded-3xl hover:border-zinc-300 dark:hover:border-white/30 hover:bg-zinc-50 dark:hover:bg-[#12121a] transition-all duration-300 shadow-sm flex flex-col justify-between"
                 >
                   <div>
                     <div className="flex items-center justify-between mb-6">
@@ -143,7 +148,6 @@ export default function Home() {
         {/* --- FOOTER --- */}
         <footer className="relative z-20 w-full bg-white dark:bg-[#020203] border-t border-zinc-200 dark:border-white/10 px-8 py-24 transition-colors duration-500">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
-            
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-5">
                 <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-zinc-900 dark:bg-white">
@@ -155,7 +159,6 @@ export default function Home() {
                 Trust infrastructure for the autonomous AI economy. Securing agent-to-agent commerce globally with verifiable cryptographic proofs.
               </p>
             </div>
-            
             <div>
               <h4 className="font-semibold text-zinc-900 dark:text-white mb-5 text-xs tracking-wider uppercase">Platform</h4>
               <ul className="space-y-3.5 text-sm text-zinc-500 dark:text-zinc-400 font-light">
@@ -164,7 +167,6 @@ export default function Home() {
                 <li><a href="#" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Smart Contracts</a></li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-semibold text-zinc-900 dark:text-white mb-5 text-xs tracking-wider uppercase">Developers</h4>
               <ul className="space-y-3.5 text-sm text-zinc-500 dark:text-zinc-400 font-light">
@@ -173,7 +175,6 @@ export default function Home() {
                 <li><a href="#" className="hover:text-zinc-900 dark:hover:text-white transition-colors">GitHub</a></li>
               </ul>
             </div>
-
             <div>
               <h4 className="font-semibold text-zinc-900 dark:text-white mb-5 text-xs tracking-wider uppercase">Company</h4>
               <ul className="space-y-3.5 text-sm text-zinc-500 dark:text-zinc-400 font-light">
@@ -182,7 +183,6 @@ export default function Home() {
                 <li><a href="#" className="hover:text-zinc-900 dark:hover:text-white transition-colors">Blog</a></li>
               </ul>
             </div>
-
           </div>
 
           <div className="max-w-6xl mx-auto pt-8 border-t border-zinc-200 dark:border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
@@ -193,7 +193,6 @@ export default function Home() {
             </div>
           </div>
         </footer>
-
       </div>
     </main>
   );
@@ -204,7 +203,7 @@ function TopBar() {
     <div className="fixed left-0 right-0 top-0 z-40 flex h-20 items-center justify-between px-6 md:px-12 pointer-events-none">
       <div className="w-full flex justify-end">
         <div className="flex items-center gap-2.5 mt-6 mr-4 pointer-events-auto bg-white/50 dark:bg-transparent backdrop-blur-md px-3 py-1.5 rounded-full dark:p-0 dark:backdrop-blur-none">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_rgba(16,185,129,0.8)]" />
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span className="font-mono text-[10px] font-semibold text-zinc-600 dark:text-zinc-400 tracking-widest uppercase">
             Mainnet Secure
           </span>
@@ -225,7 +224,7 @@ function MetricItem({ value, label }: { value: string; label: string }) {
 
 function FeatureCard({ icon: Icon, title, desc }: { icon: React.ElementType, title: string, desc: string }) {
   return (
-    <div className="bg-white dark:bg-[#0a0a0f] border border-zinc-200 dark:border-white/10 p-10 rounded-3xl flex flex-col items-center text-center shadow-md dark:shadow-xl hover:border-zinc-300 dark:hover:border-white/30 transition-colors">
+    <div className="bg-white dark:bg-[#0a0a0f] border border-zinc-200 dark:border-white/10 p-10 rounded-3xl flex flex-col items-center text-center shadow-sm dark:shadow-md hover:border-zinc-300 dark:hover:border-white/30 transition-colors">
       <div className="w-14 h-14 rounded-2xl bg-zinc-50 dark:bg-white/5 border border-zinc-200 dark:border-white/10 flex items-center justify-center text-zinc-900 dark:text-white mb-6">
         <Icon className="w-6 h-6" strokeWidth={1.75} />
       </div>

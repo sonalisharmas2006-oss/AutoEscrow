@@ -5,16 +5,8 @@ import Sidebar from "@/components/layout/Sidebar";
 
 export default function InitializeEscrowPage() {
   return (
-    <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-[#050508] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans overflow-x-hidden transition-colors duration-500">
+    <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-transparent text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans overflow-x-hidden transition-colors duration-500">
       
-      {/* BACKGROUND */}
-      <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center hidden dark:flex">
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]" />
-        <div className="absolute top-[10%] left-[-10%] w-[50vw] h-[50vw] rounded-full bg-blue-900/10 blur-[130px] animate-[pulse_12s_ease-in-out_infinite]" />
-        <div className="absolute bottom-[-10%] right-[-5%] w-[40vw] h-[40vw] rounded-full bg-emerald-900/10 blur-[120px] animate-[pulse_10s_ease-in-out_infinite_reverse]" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,#050508_100%)]" />
-      </div>
-
       <Sidebar />
 
       <div className="relative z-10 w-full min-h-screen pl-[100px] pr-8 pt-24 pb-24 max-w-6xl mx-auto">
