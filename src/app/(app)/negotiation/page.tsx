@@ -1,9 +1,46 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Search, Hexagon } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { ApiAgreement, ApiJob, autoEscrowApi } from "@/lib/api";
 
 export default function NegotiationPage() {
+  const [rows, setRows] = useState<Array<{ job: ApiJob; agreement: ApiAgreement | null }>>([]);
+  const [search, setSearch] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const jobs = await autoEscrowApi.listJobs({ limit: 100 });
+        const agreements = await Promise.all(
+          jobs.items.map(async (job) => ({ job, agreement: await autoEscrowApi.getAgreementForJob(job.id) })),
+        );
+        if (!active) return;
+        setRows(agreements);
+        setError(null);
+      } catch (caught) {
+        if (!active) return;
+        setError(caught instanceof Error ? caught.message : "Unable to load negotiation data.");
+      } finally {
+        if (active) setLoaded(true);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter(({ job, agreement }) => `${job.public_id} ${agreement?.id || ""} ${agreement?.status || ""}`.toLowerCase().includes(query));
+  }, [rows, search]);
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-[#0b0c10] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans transition-colors duration-500">
       <Sidebar />
@@ -29,18 +66,20 @@ export default function NegotiationPage() {
               <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
             </div>
             <input 
-              type="text" 
-              placeholder="Search Proposals..." 
-              className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
+                type="text"
+                placeholder="Search Proposals..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
             />
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-          <StatCard title="Active Negotiations" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Active Negotiations" value={loaded ? String(rows.filter(({ agreement }) => agreement && ["proposed", "revision_requested"].includes(agreement.status)).length) : "--"} trend={loaded ? "Backend agreements" : "Awaiting Data"} accent="text-zinc-500" />
           <StatCard title="Avg Agreement Time" value="--" trend="Awaiting Data" accent="text-zinc-500" />
           <StatCard title="Success Rate" value="--" trend="Awaiting Data" accent="text-zinc-500" />
-          <StatCard title="Rejected Terms" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Rejected Terms" value={loaded ? String(rows.filter(({ agreement }) => agreement?.status === "rejected").length) : "--"} trend={loaded ? "Backend agreements" : "Awaiting Data"} accent="text-zinc-500" />
         </div>
 
         <div className="w-full border border-zinc-200 dark:border-white/5 rounded-3xl p-2 bg-white dark:bg-black/20 shadow-sm dark:shadow-none transition-colors duration-500">
@@ -51,10 +90,19 @@ export default function NegotiationPage() {
             <div className="col-span-3 text-right">Consensus Status</div>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
-            <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
-            Awaiting negotiation stream...
-          </div>
+          {visibleRows.length ? visibleRows.map(({ job, agreement }) => (
+            <div key={job.id} className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-zinc-100 dark:border-white/5 text-xs items-center">
+              <div className="col-span-4 text-zinc-900 dark:text-white font-semibold">{agreement ? `AG-${agreement.id}` : "No proposal"}<span className="block text-[10px] font-mono text-zinc-500">{job.public_id}</span></div>
+              <div className="col-span-3 text-zinc-500 dark:text-zinc-400">#{agreement?.requester_agent_id ?? job.requester_agent_id ?? "--"} → #{agreement?.executor_agent_id ?? job.selected_agent_id ?? job.executor_agent_id ?? "--"}</div>
+              <div className="col-span-2 text-zinc-500 dark:text-zinc-400 font-mono">{agreement?.proposed_deadline ? new Date(agreement.proposed_deadline).toLocaleDateString() : new Date(job.deadline).toLocaleDateString()}</div>
+              <div className="col-span-3 text-right text-purple-500 dark:text-purple-400 font-mono">{agreement ? agreement.status.toUpperCase() : "NOT PROPOSED"}</div>
+            </div>
+          )) : (
+            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
+              {!loaded && <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />}
+              {error || (loaded ? (search.trim() ? "No matching jobs." : "No jobs found.") : "Awaiting negotiation stream...")}
+            </div>
+          )}
         </div>
 
       </div>

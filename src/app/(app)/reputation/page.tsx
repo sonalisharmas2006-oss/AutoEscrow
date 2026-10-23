@@ -1,9 +1,36 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Search, Hexagon } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { ApiJobEvent, autoEscrowApi } from "@/lib/api";
 
 export default function ReputationPage() {
+  const [events, setEvents] = useState<ApiJobEvent[]>([]);
+  const [completedJobs, setCompletedJobs] = useState<number | null>(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([autoEscrowApi.listJobs({ limit: 100 }), autoEscrowApi.getDashboardMetrics()]).then(async ([jobs, metrics]) => {
+      const eventLists = await Promise.all(jobs.items.map((job) => autoEscrowApi.getJobEvents(job.id)));
+      if (!active) return;
+      setEvents(eventLists.flat().filter((event) => event.event_type.includes("escrow") || event.event_type.includes("settlement") || event.event_type.includes("verification")));
+      setCompletedJobs(metrics.completed_jobs);
+    }).catch(() => {
+      if (active) setEvents([]);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleEvents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return events;
+    return events.filter((event) => `${event.event_type} ${event.description} ${event.id}`.toLowerCase().includes(query));
+  }, [events, search]);
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-[#0b0c10] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans transition-colors duration-500">
       <Sidebar />
@@ -29,15 +56,17 @@ export default function ReputationPage() {
               <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
             </div>
             <input 
-              type="text" 
-              placeholder="Search Execution Hash..." 
-              className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
+                type="text"
+                placeholder="Search Execution Hash..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
             />
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-          <StatCard title="Total Executions" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Total Executions" value={completedJobs === null ? "--" : String(completedJobs)} trend={completedJobs === null ? "Awaiting Data" : "Completed backend jobs"} accent="text-zinc-500" />
           <StatCard title="Tier 1 Agents" value="--" trend="Awaiting Data" accent="text-zinc-500" />
           <StatCard title="Global Slash Rate" value="--" trend="Awaiting Data" accent="text-zinc-500" />
           <StatCard title="Trust Tokens Minted" value="--" trend="Awaiting Data" accent="text-zinc-500" />
@@ -51,10 +80,19 @@ export default function ReputationPage() {
             <div className="col-span-3 text-right">Settlement</div>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
-            <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
-            Awaiting backend data stream...
-          </div>
+          {visibleEvents.length ? visibleEvents.map((event) => (
+            <div key={event.id} className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-zinc-100 dark:border-white/5 text-xs items-center">
+              <div className="col-span-3 text-zinc-500 dark:text-zinc-400 font-mono">{new Date(event.created_at).toLocaleString()}<span className="block text-[10px] text-zinc-500">event-{event.id}</span></div>
+              <div className="col-span-3 text-zinc-900 dark:text-white font-semibold">Agent #{event.actor_agent_id || "system"}</div>
+              <div className="col-span-3 text-zinc-500 dark:text-zinc-400 font-mono">{event.event_type}</div>
+              <div className="col-span-3 text-right text-amber-500 dark:text-amber-400 font-mono">RECORDED</div>
+            </div>
+          )) : (
+            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
+              <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
+              Awaiting backend data stream...
+            </div>
+          )}
         </div>
 
       </div>

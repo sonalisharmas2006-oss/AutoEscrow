@@ -1,9 +1,33 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Search, Hexagon } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { Agent, mapApiAgentToAgent } from "@/data/mockData";
+import { autoEscrowApi } from "@/lib/api";
 
 export default function DiscoverPage() {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    autoEscrowApi.listAgents({ status: "active", availability: "available" }).then((response) => {
+      if (active) setAgents(response.items.map(mapApiAgentToAgent));
+    }).catch(() => {
+      if (active) setAgents([]);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleAgents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return agents;
+    return agents.filter((agent) => [agent.name, agent.externalId, ...agent.capabilities].some((value) => value?.toLowerCase().includes(query)));
+  }, [agents, search]);
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-[#0b0c10] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans transition-colors duration-500">
       <Sidebar />
@@ -29,15 +53,17 @@ export default function DiscoverPage() {
               <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
             </div>
             <input 
-              type="text" 
-              placeholder="Search Capabilities..." 
-              className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
+                type="text"
+                placeholder="Search Capabilities..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
             />
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-          <StatCard title="Available Agents" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Available Agents" value={agents.length ? String(agents.length) : "--"} trend={agents.length ? "Registry connected" : "Awaiting Data"} accent="text-zinc-500" />
           <StatCard title="Active Queries" value="--" trend="Awaiting Data" accent="text-zinc-500" />
           <StatCard title="Match Rate" value="--" trend="Awaiting Data" accent="text-zinc-500" />
           <StatCard title="Network Latency" value="--" trend="Awaiting Data" accent="text-zinc-500" />
@@ -51,10 +77,19 @@ export default function DiscoverPage() {
             <div className="col-span-3 text-right">Handshake Status</div>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
-            <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
-            Awaiting registry data...
-          </div>
+          {visibleAgents.length ? visibleAgents.map((agent) => (
+            <div key={agent.id} className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-zinc-100 dark:border-white/5 text-xs items-center">
+              <div className="col-span-4 text-zinc-900 dark:text-white font-semibold">{agent.name}<span className="block text-[10px] font-mono text-zinc-500">{agent.externalId}</span></div>
+              <div className="col-span-3 text-zinc-500 dark:text-zinc-400">{agent.capabilities.slice(0, 2).join(" · ") || "--"}</div>
+              <div className="col-span-2 text-zinc-500 dark:text-zinc-400 font-mono">Agreement budget</div>
+              <div className="col-span-3 text-right text-emerald-500 dark:text-emerald-400 font-mono">{agent.availability?.toUpperCase() || "AVAILABLE"}</div>
+            </div>
+          )) : (
+            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
+              <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
+              Awaiting registry data...
+            </div>
+          )}
         </div>
 
       </div>

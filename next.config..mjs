@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Optimize server packages and prevent lazy loading stalls
   experimental: {
-    // This stops Lucide-React from freezing your compiler!
-    optimizePackageImports: ['lucide-react'],
+    optimizePackageImports: ["lucide-react"],
   },
 };
 
-export default nextConfig;
+export default function config() {
+  return nextConfig;
+}

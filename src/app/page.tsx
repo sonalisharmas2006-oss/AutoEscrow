@@ -1,30 +1,31 @@
 "use client";
 
 import Link from "next/link";
-import Script from "next/script";
+import Image from "next/image";
 import { ArrowUpRight, ShieldCheck, Box, Cpu, Lock } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 
 export default function Home() {
   return (
-    <main className="relative w-full bg-zinc-50 dark:bg-[#030305] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-500">
+    <main className="relative w-full bg-zinc-50 dark:bg-[#030305] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black transition-colors duration-300 overflow-x-hidden">
       
-      {/* 1. SPLINE ENGINE SCRIPT (Loads normally without blocking UI) */}
-      <Script type="module" src="https://unpkg.com/@splinetool/viewer@1.0.94/build/spline-viewer.js" />
-
-      {/* BACKGROUND 3D ROBOT */}
-      <div className="fixed inset-0 z-0 flex items-center justify-center overflow-hidden pointer-events-auto">
-        <div className="w-full h-full scale-[1.25] md:scale-[1.4] translate-y-[10%] opacity-40 dark:opacity-100 transition-opacity duration-1000">
-          {/* @ts-ignore - Custom Web Component */}
-          <spline-viewer url="https://prod.spline.design/vMHPwDXhoa3PUz8P/scene.splinecode"></spline-viewer>
+      {/* --- OPTIMIZED STATIC BACKGROUND (Zero Lag) --- */}
+      <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden bg-zinc-50 dark:bg-[#030305]">
+        <div className="absolute inset-0 opacity-45 dark:opacity-75 will-change-[opacity]">
+          <Image 
+            src="/robot.jpg" 
+            alt="AutoEscrow Trust Engine"
+            fill
+            priority
+            className="object-cover object-[center_18%] scale-105"
+          />
         </div>
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(250,250,250,0.75)_0%,#fafafa_90%)] dark:bg-[radial-gradient(circle_at_center,rgba(3,3,5,0.75)_0%,#030305_90%)] pointer-events-none transition-colors duration-500" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(3,3,5,0.2)_0%,rgba(3,3,5,0.75)_70%,#030305_100%)] dark:bg-[radial-gradient(circle_at_center,rgba(3,3,5,0.3)_0%,rgba(3,3,5,0.85)_75%,#030305_100%)]" />
       </div>
       
       <Sidebar />
       <TopBar />
 
-      {/* CONTENT (Renders Instantly) */}
       <div className="relative z-10 w-full md:pl-[80px]">
         
         {/* --- HERO SECTION --- */}
@@ -64,7 +65,7 @@ export default function Home() {
         </section>
 
         {/* --- FEATURES SECTION --- */}
-        <section className="relative z-20 w-full bg-white dark:bg-[#050508] px-6 py-36 border-t border-zinc-200 dark:border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.5)] transition-colors duration-500">
+        <section className="relative z-20 w-full bg-white dark:bg-[#050508] px-6 py-36 border-t border-zinc-200 dark:border-white/10 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.5)] transition-colors duration-300">
           <div className="max-w-6xl mx-auto">
             <div className="mb-20 text-center max-w-2xl mx-auto">
               <h2 className="text-3xl md:text-5xl font-bold tracking-tight text-zinc-900 dark:text-white mb-4">
@@ -96,7 +97,7 @@ export default function Home() {
         </section>
 
         {/* --- PROTOCOL LIFECYCLE SECTION --- */}
-        <section className="relative z-20 w-full bg-zinc-50 dark:bg-[#030305] px-6 py-36 border-t border-zinc-200 dark:border-white/10 transition-colors duration-500">
+        <section className="relative z-20 w-full bg-zinc-50 dark:bg-[#030305] px-6 py-36 border-t border-zinc-200 dark:border-white/10 transition-colors duration-300">
           <div className="max-w-6xl mx-auto">
             <div className="text-center max-w-3xl mx-auto mb-20">
               <span className="text-xs font-mono tracking-[0.25em] text-zinc-500 dark:text-zinc-400 uppercase font-semibold block mb-3">
@@ -146,7 +147,7 @@ export default function Home() {
         </section>
 
         {/* --- FOOTER --- */}
-        <footer className="relative z-20 w-full bg-white dark:bg-[#020203] border-t border-zinc-200 dark:border-white/10 px-8 py-24 transition-colors duration-500">
+        <footer className="relative z-20 w-full bg-white dark:bg-[#020203] border-t border-zinc-200 dark:border-white/10 px-8 py-24 transition-colors duration-300">
           <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-5 gap-12 mb-16">
             <div className="md:col-span-2">
               <div className="flex items-center gap-3 mb-5">

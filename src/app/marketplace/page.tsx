@@ -1,9 +1,50 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Search, Hexagon, Filter, ShieldCheck, Activity, Terminal, Star } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { useFlow } from "@/context/FlowContext";
+import { autoEscrowApi } from "@/lib/api";
+import { Agent, mapApiAgentToAgent } from "@/data/mockData";
 
 export default function MarketplacePage() {
+  const router = useRouter();
+  const { startTransactionWithAgent, isLoading } = useFlow();
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [search, setSearch] = useState("");
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    autoEscrowApi.listAgents({ status: "active", availability: "available" }).then((response) => {
+      if (active) setAgents(response.items.map(mapApiAgentToAgent));
+    }).catch((caught: unknown) => {
+      if (active) setError(caught instanceof Error ? caught.message : "Unable to load registered agents.");
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleAgents = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return agents;
+    return agents.filter((agent) => [agent.name, agent.externalId, agent.description, ...agent.capabilities].some((value) => value?.toLowerCase().includes(query)));
+  }, [agents, search]);
+
+  const handleHandshake = async (agent: Agent) => {
+    setError(null);
+    try {
+      await startTransactionWithAgent(agent);
+      router.push("/risk");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The backend could not create this handshake.");
+    }
+  };
+
+  const themes: Array<"fuchsia" | "emerald" | "blue" | "amber" | "purple" | "rose"> = ["fuchsia", "emerald", "blue", "amber", "purple", "rose"];
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-transparent text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans overflow-x-hidden transition-colors duration-500">
       
@@ -33,6 +74,8 @@ export default function MarketplacePage() {
               <input 
                 type="text" 
                 placeholder="Search capabilities, DIDs..." 
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
                 className="w-full bg-white dark:bg-[#0a0a0f]/80 border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:border-fuchsia-500/50 dark:focus:bg-[#12121a] transition-all backdrop-blur-xl shadow-sm dark:shadow-lg"
               />
             </div>
@@ -49,13 +92,12 @@ export default function MarketplacePage() {
           <div className="h-10 w-28 rounded-full bg-zinc-200 dark:bg-white/5 animate-pulse" />
         </div>
 
+        {error && <p className="mb-6 text-xs font-mono text-rose-500 dark:text-rose-400" role="alert">{error}</p>}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <AgentCardShell theme="fuchsia" />
-          <AgentCardShell theme="emerald" />
-          <AgentCardShell theme="blue" />
-          <AgentCardShell theme="amber" />
-          <AgentCardShell theme="purple" />
-          <AgentCardShell theme="rose" />
+          {(visibleAgents.length ? visibleAgents : themes.map(() => undefined)).map((agent, index) => (
+            <AgentCardShell key={agent?.id || `placeholder-${index}`} theme={themes[index % themes.length]} agent={agent} onHandshake={handleHandshake} disabled={isLoading} />
+          ))}
         </div>
 
       </div>
@@ -63,7 +105,17 @@ export default function MarketplacePage() {
   );
 }
 
-function AgentCardShell({ theme }: { theme: 'fuchsia' | 'emerald' | 'blue' | 'amber' | 'purple' | 'rose' }) {
+function AgentCardShell({
+  theme,
+  agent,
+  onHandshake,
+  disabled,
+}: {
+  theme: 'fuchsia' | 'emerald' | 'blue' | 'amber' | 'purple' | 'rose';
+  agent?: Agent;
+  onHandshake: (agent: Agent) => void;
+  disabled?: boolean;
+}) {
   
   const colors = {
     fuchsia: "from-fuchsia-500/10 dark:from-fuchsia-500/20 text-fuchsia-600 dark:text-fuchsia-400 border-fuchsia-200 dark:border-fuchsia-500/30 bg-fuchsia-50 dark:bg-fuchsia-500/10",
@@ -90,21 +142,26 @@ function AgentCardShell({ theme }: { theme: 'fuchsia' | 'emerald' | 'blue' | 'am
           </div>
           
           <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-[10px] font-bold uppercase tracking-widest ${themeClass.split(' ').slice(1).join(' ')}`}>
-            <ShieldCheck size={12} /> Tier --
+             <ShieldCheck size={12} /> Tier {agent?.autonomyLevel || "--"}
           </div>
         </div>
 
         <div className="mb-4">
-          <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">Awaiting Backend...</h3>
-          <p className="text-sm text-zinc-500 dark:text-zinc-400 font-light leading-relaxed line-clamp-2">
-            Connect your database to render agent descriptions, capabilities, and on-chain histories here.
-          </p>
+           <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">{agent?.name || "Awaiting Backend..."}</h3>
+           <p className="text-sm text-zinc-500 dark:text-zinc-400 font-light leading-relaxed line-clamp-2">
+             {agent?.description || "Connect your database to render agent descriptions, capabilities, and on-chain histories here."}
+           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-6 mt-auto">
-          <div className="h-6 w-16 rounded bg-zinc-100 dark:bg-white/10 animate-pulse" />
-          <div className="h-6 w-20 rounded bg-zinc-100 dark:bg-white/5 animate-pulse" />
-          <div className="h-6 w-14 rounded bg-zinc-100 dark:bg-white/5 animate-pulse" />
+         <div className="flex flex-wrap gap-2 mb-6 mt-auto">
+           {(agent?.capabilities.slice(0, 3) || []).map((capability) => (
+             <span key={capability} className="px-2 py-1 rounded bg-zinc-100 dark:bg-white/10 text-[10px] text-zinc-500 dark:text-zinc-400">{capability}</span>
+           ))}
+           {!agent && <>
+             <div className="h-6 w-16 rounded bg-zinc-100 dark:bg-white/10 animate-pulse" />
+             <div className="h-6 w-20 rounded bg-zinc-100 dark:bg-white/5 animate-pulse" />
+             <div className="h-6 w-14 rounded bg-zinc-100 dark:bg-white/5 animate-pulse" />
+           </>}
         </div>
 
         <div className="pt-5 border-t border-zinc-100 dark:border-white/10 mt-auto">
@@ -113,7 +170,7 @@ function AgentCardShell({ theme }: { theme: 'fuchsia' | 'emerald' | 'blue' | 'am
               <Activity size={14} />
               <span className="text-[11px] font-mono tracking-widest uppercase">Success Rate</span>
             </div>
-            <span className="font-mono text-zinc-900 dark:text-white text-sm font-semibold">--%</span>
+             <span className="font-mono text-zinc-900 dark:text-white text-sm font-semibold">{agent ? `${agent.successRate.toFixed(1)}%` : "--%"}</span>
           </div>
           
           <div className="flex justify-between items-center mb-6">
@@ -121,12 +178,12 @@ function AgentCardShell({ theme }: { theme: 'fuchsia' | 'emerald' | 'blue' | 'am
               <Star size={14} />
               <span className="text-[11px] font-mono tracking-widest uppercase">Base Fee</span>
             </div>
-            <span className="font-mono text-zinc-900 dark:text-white text-sm font-semibold">-- USDC</span>
+             <span className="font-mono text-zinc-900 dark:text-white text-sm font-semibold">{agent ? agent.priceRate : "-- USDC"}</span>
           </div>
 
-          <button className="w-full py-3.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-bold transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-md">
-            Initiate Handshake
-          </button>
+           <button disabled={!agent || disabled} onClick={() => agent && onHandshake(agent)} className="w-full py-3.5 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-xs font-bold transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-md">
+             {disabled && agent ? "Connecting..." : "Initiate Handshake"}
+           </button>
         </div>
 
       </div>

@@ -1,11 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { TrustScoreBadge } from "@/components/ui/TrustScoreBadge";
-import { MOCK_AGENTS } from "@/data/mockData";
+import { Agent, mapApiAgentToAgent, MOCK_AGENTS } from "@/data/mockData";
 import { useFlow } from "@/context/FlowContext";
+import { ApiDashboardMetrics, autoEscrowApi, formatMoney } from "@/lib/api";
 import { ArrowUpRight, ShieldCheck, Lock, Activity, CheckCircle, Clock } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip } from "recharts";
 
@@ -18,7 +20,38 @@ const chartData = [
 ];
 
 export default function DashboardPage() {
+  const router = useRouter();
   const { activeTransaction, startTransactionWithAgent } = useFlow();
+  const [metrics, setMetrics] = useState<ApiDashboardMetrics | null>(null);
+  const [agents, setAgents] = useState<Agent[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([
+      autoEscrowApi.getDashboardMetrics(),
+      autoEscrowApi.listAgents({ status: "active", availability: "available", limit: 3 }),
+    ]).then(([dashboardMetrics, agentResponse]) => {
+      if (!active) return;
+      setMetrics(dashboardMetrics);
+      setAgents(agentResponse.items.map(mapApiAgentToAgent));
+    }).catch(() => {
+      // The existing presentation remains available while the backend is offline.
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const dispatchAgents = agents.length ? agents : MOCK_AGENTS.slice(0, 3);
+  const completionRate = metrics && metrics.total_jobs > 0 ? `${((metrics.completed_jobs / metrics.total_jobs) * 100).toFixed(1)}%` : "--";
+  const handleHire = async (agent: Agent) => {
+    try {
+      await startTransactionWithAgent(agent);
+      router.push("/risk");
+    } catch {
+      // FlowContext retains the backend error for the next integration surface.
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -29,7 +62,7 @@ export default function DashboardPage() {
             <span>Active Transactions</span>
             <Activity className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-3xl font-mono font-bold mt-2 text-white">08</div>
+          <div className="text-3xl font-mono font-bold mt-2 text-white">{metrics ? String(metrics.jobs_in_progress).padStart(2, "0") : "--"}</div>
           <div className="text-[11px] text-emerald-400 mt-1 flex items-center gap-1">
             <span>+2 autonomous in flight</span>
           </div>
@@ -40,7 +73,7 @@ export default function DashboardPage() {
             <span>Escrow Locked</span>
             <Lock className="w-4 h-4 text-cyan-400" />
           </div>
-          <div className="text-3xl font-mono font-bold mt-2 text-white">$2,840</div>
+          <div className="text-3xl font-mono font-bold mt-2 text-white">{metrics ? formatMoney(metrics.total_simulated_escrow_funded) : "--"}</div>
           <div className="text-[11px] text-slate-400 mt-1">Smart Contract Escrow (USDC)</div>
         </GlassCard>
 
@@ -49,7 +82,7 @@ export default function DashboardPage() {
             <span>Successful Verifications</span>
             <CheckCircle className="w-4 h-4 text-emerald-400" />
           </div>
-          <div className="text-3xl font-mono font-bold mt-2 text-white">97.4%</div>
+          <div className="text-3xl font-mono font-bold mt-2 text-white">{completionRate}</div>
           <div className="text-[11px] text-emerald-400 mt-1">Multi-layer SLA compliance</div>
         </GlassCard>
 
@@ -58,7 +91,7 @@ export default function DashboardPage() {
             <span>Network Trust Score</span>
             <ShieldCheck className="w-4 h-4 text-indigo-400" />
           </div>
-          <div className="text-3xl font-mono font-bold mt-2 text-white">94.7</div>
+          <div className="text-3xl font-mono font-bold mt-2 text-white">--</div>
           <div className="text-[11px] text-slate-400 mt-1">Autonomous Prime tier</div>
         </GlassCard>
       </div>
@@ -141,7 +174,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-3">
-            {MOCK_AGENTS.slice(0, 3).map((agent) => (
+            {dispatchAgents.map((agent) => (
               <div key={agent.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 hover:border-emerald-500/30 transition-all flex items-center justify-between">
                 <div>
                   <div className="text-xs font-bold text-white">{agent.name}</div>
@@ -149,7 +182,7 @@ export default function DashboardPage() {
                 </div>
                 <Link
                   href="/risk"
-                  onClick={() => startTransactionWithAgent(agent)}
+                  onClick={(event) => { event.preventDefault(); void handleHire(agent); }}
                   className="px-3 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500 hover:text-black font-semibold text-xs transition-all"
                 >
                   Hire

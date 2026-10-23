@@ -1,9 +1,58 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { Search, Hexagon } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { ApiEscrow, ApiJob, autoEscrowApi, formatMoney } from "@/lib/api";
 
 export default function EscrowPage() {
+  const [rows, setRows] = useState<Array<{ job: ApiJob; escrow: ApiEscrow | null }>>([]);
+  const [search, setSearch] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    const load = async () => {
+      try {
+        const jobs = await autoEscrowApi.listJobs({ limit: 100 });
+        const escrows = await Promise.all(
+          jobs.items.map(async (job) => ({ job, escrow: await autoEscrowApi.getEscrowForJob(job.id) })),
+        );
+        if (!active) return;
+        setRows(escrows);
+        setError(null);
+      } catch (caught) {
+        if (!active) return;
+        setError(caught instanceof Error ? caught.message : "Unable to load escrow data.");
+      } finally {
+        if (active) setLoaded(true);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return rows;
+    return rows.filter(({ job, escrow }) => `${job.public_id} ${escrow?.id || ""} ${escrow?.provider_reference || ""}`.toLowerCase().includes(query));
+  }, [rows, search]);
+  const totalLocked = rows.reduce(
+    (total, row) => total + (
+      row.escrow && ["funded", "held"].includes(row.escrow.status)
+        ? Number(row.escrow.funded_amount || row.escrow.accepted_amount)
+        : 0
+    ),
+    0,
+  );
+  const activeVaults = rows.filter(({ escrow }) => escrow && !["released", "refunded"].includes(escrow.status)).length;
+  const pendingRelease = rows
+    .filter(({ escrow }) => escrow && ["funded", "held"].includes(escrow.status))
+    .reduce((total, row) => total + Number(row.escrow?.funded_amount || row.escrow?.accepted_amount || 0), 0);
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-[#0b0c10] text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans transition-colors duration-500">
       <Sidebar />
@@ -29,18 +78,20 @@ export default function EscrowPage() {
               <Search size={16} className="text-zinc-400 dark:text-zinc-500" />
             </div>
             <input 
-              type="text" 
-              placeholder="Search Vaults..." 
-              className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
+                type="text"
+                placeholder="Search Vaults..."
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="w-full bg-white dark:bg-transparent border border-zinc-200 dark:border-white/10 rounded-full py-3.5 pl-12 pr-6 text-sm text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-zinc-600 focus:outline-none focus:border-zinc-300 dark:focus:border-white/30 transition-all shadow-sm dark:shadow-none"
             />
           </div>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-12">
-          <StatCard title="Total Locked" value="--" trend="Awaiting Data" accent="text-zinc-500" />
-          <StatCard title="Pending Release" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Total Locked" value={loaded ? formatMoney(totalLocked) : "--"} trend={loaded ? "Backend ledger" : "Awaiting Data"} accent="text-zinc-500" />
+          <StatCard title="Pending Release" value={loaded ? formatMoney(pendingRelease) : "--"} trend={loaded ? "Backend ledger" : "Awaiting Data"} accent="text-zinc-500" />
           <StatCard title="Yield Generated" value="--" trend="Awaiting Data" accent="text-zinc-500" />
-          <StatCard title="Active Vaults" value="--" trend="Awaiting Data" accent="text-zinc-500" />
+          <StatCard title="Active Vaults" value={loaded ? String(activeVaults) : "--"} trend={loaded ? "Backend ledger" : "Awaiting Data"} accent="text-zinc-500" />
         </div>
 
         <div className="w-full border border-zinc-200 dark:border-white/5 rounded-3xl p-2 bg-white dark:bg-black/20 shadow-sm dark:shadow-none transition-colors duration-500">
@@ -51,10 +102,19 @@ export default function EscrowPage() {
             <div className="col-span-3 text-right">Lock Status</div>
           </div>
 
-          <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
-            <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />
-            Awaiting blockchain indexer...
-          </div>
+          {visibleRows.length ? visibleRows.map(({ job, escrow }) => (
+            <div key={job.id} className="grid grid-cols-12 gap-4 px-6 py-4 border-b border-zinc-100 dark:border-white/5 text-xs items-center">
+              <div className="col-span-4 text-zinc-900 dark:text-white font-semibold font-mono">{escrow ? `escrow-${escrow.id}` : "No vault"}<span className="block text-[10px] font-sans text-zinc-500">{job.public_id}</span></div>
+              <div className="col-span-3 text-zinc-500 dark:text-zinc-400">Agent #{job.selected_agent_id || job.executor_agent_id || "--"}</div>
+              <div className="col-span-2 text-zinc-500 dark:text-zinc-400 font-mono">{escrow ? formatMoney(escrow.funded_amount || escrow.accepted_amount, escrow.currency) : "--"}</div>
+              <div className="col-span-3 text-right text-rose-500 dark:text-rose-400 font-mono">{escrow ? escrow.status.toUpperCase() : "NOT CREATED"}</div>
+            </div>
+          )) : (
+            <div className="flex flex-col items-center justify-center py-24 text-zinc-500 dark:text-zinc-600 font-mono text-sm">
+              {!loaded && <div className="h-8 w-8 border-2 border-zinc-200 border-t-zinc-400 dark:border-zinc-800 dark:border-t-zinc-500 rounded-full animate-spin mb-4" />}
+              {error || (loaded ? (search.trim() ? "No matching jobs." : "No jobs found.") : "Awaiting blockchain indexer...")}
+            </div>
+          )}
         </div>
 
       </div>

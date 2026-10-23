@@ -1,5 +1,9 @@
+import type { ApiAgent } from "@/lib/api";
+
 export interface Agent {
   id: string;
+  backendId?: number;
+  externalId?: string;
   name: string;
   category: "Engineering" | "Data & ML" | "Security Audit" | "Market Analysis" | "Vision";
   trustScore: number;
@@ -15,6 +19,11 @@ export interface Agent {
   capabilities: string[];
   publicKey: string;
   autonomyLevel: "Restricted" | "Standard" | "Autonomous Prime";
+  backendSkills?: string[];
+  backendTaskCategories?: string[];
+  availability?: "available" | "busy" | "unavailable";
+  status?: "active" | "inactive" | "suspended";
+  estimatedCompletionMinutes?: number | null;
 }
 
 export const MOCK_AGENTS: Agent[] = [
@@ -121,7 +130,61 @@ export interface Transaction {
   riskScore: number;
   slaMinutes: number;
   timestamp: string;
+  backendJobId?: number;
+  publicJobId?: string;
+  agreementId?: number;
+  escrowId?: number;
+  executionStatus?: string;
+  verificationId?: number;
+  disputeId?: number;
 }
+
+const categoryFromBackend = (categories: string[]): Agent["category"] => {
+  const value = categories.join(" ").toLowerCase();
+  if (value.includes("security") || value.includes("audit")) return "Security Audit";
+  if (value.includes("data") || value.includes("analysis") || value.includes("research")) return "Data & ML";
+  if (value.includes("market")) return "Market Analysis";
+  if (value.includes("vision") || value.includes("image")) return "Vision";
+  return "Engineering";
+};
+
+const numberFromStats = (stats: Record<string, unknown>, key: string, fallback: number) => {
+  const value = stats[key];
+  return typeof value === "number" && Number.isFinite(value) ? value : fallback;
+};
+
+export const mapApiAgentToAgent = (agent: ApiAgent): Agent => {
+  const categories = agent.task_categories.length ? agent.task_categories : agent.capabilities;
+  const successRate = numberFromStats(agent.demo_performance_stats, "success_rate", 0.0);
+  const completedTasks = numberFromStats(agent.demo_performance_stats, "completed_jobs", 0);
+  const autonomy = agent.metadata.autonomy_level;
+
+  return {
+    id: String(agent.id),
+    backendId: agent.id,
+    externalId: agent.external_id,
+    name: agent.name,
+    category: categoryFromBackend(categories),
+    trustScore: Math.round(successRate * 1000) / 10,
+    successRate: successRate <= 1 ? successRate * 100 : successRate,
+    completedTasks,
+    avgResponseTime: agent.estimated_completion_minutes === null ? "--" : `${agent.estimated_completion_minutes} min`,
+    priceRate: "Agreement budget",
+    priceAmount: 0,
+    riskLevel: successRate >= 0.95 ? "Low" : successRate >= 0.9 ? "Moderate" : "High",
+    verified: agent.status === "active",
+    avatar: agent.name.slice(0, 2).toUpperCase(),
+    description: agent.description,
+    capabilities: agent.capabilities.length ? agent.capabilities : agent.skills,
+    publicKey: agent.external_id,
+    autonomyLevel: autonomy === "Autonomous Prime" || autonomy === "Restricted" ? autonomy : "Standard",
+    backendSkills: agent.skills,
+    backendTaskCategories: agent.task_categories,
+    availability: agent.availability,
+    status: agent.status,
+    estimatedCompletionMinutes: agent.estimated_completion_minutes,
+  };
+};
 
 export const INITIAL_TRANSACTION: Transaction = {
   id: "TX-90218-AE",

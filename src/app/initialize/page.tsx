@@ -1,9 +1,42 @@
 "use client";
 
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Hexagon, Shield, ChevronDown, Lock, Cpu, ArrowRight, Network, Fingerprint } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
+import { useFlow } from "@/context/FlowContext";
+import { formatMoney } from "@/lib/api";
 
 export default function InitializeEscrowPage() {
+  const router = useRouter();
+  const { initializeEscrow, isLoading, error } = useFlow();
+  const [agentIdentifier, setAgentIdentifier] = useState("");
+  const [currency, setCurrency] = useState("USD");
+  const [budget, setBudget] = useState("");
+  const [message, setMessage] = useState<string | null>(null);
+  const amount = Number(budget);
+  const preview = useMemo(() => {
+    if (!Number.isFinite(amount) || amount <= 0) return null;
+    // The backend funding contract derives money from the accepted agreement and charges no client-supplied fee.
+    const fee = 0;
+    return { fee, total: amount + fee };
+  }, [amount]);
+
+  const handleDeploy = async () => {
+    setMessage(null);
+    if (!budget || !Number.isFinite(amount) || amount <= 0) {
+      setMessage("Enter a positive lock amount before deploying.");
+      return;
+    }
+    try {
+      await initializeEscrow({ agentIdentifier, budget: amount.toFixed(2), currency });
+      setMessage("Escrow funded successfully. Opening the escrow ledger...");
+      router.push("/escrow");
+    } catch {
+      // The FlowContext error is rendered below without changing the visual shell.
+    }
+  };
+
   return (
     <main className="relative min-h-screen w-full bg-zinc-50 dark:bg-transparent text-zinc-900 dark:text-white selection:bg-zinc-900 selection:text-white dark:selection:bg-white dark:selection:text-black font-sans overflow-x-hidden transition-colors duration-500">
       
@@ -41,7 +74,9 @@ export default function InitializeEscrowPage() {
                   <div className="relative">
                     <input 
                       type="text" 
-                      placeholder="e.g. 0x..." 
+                      placeholder="e.g. demo-agent-001 or 1"
+                      value={agentIdentifier}
+                      onChange={(event) => setAgentIdentifier(event.target.value)}
                       className="w-full bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl py-3.5 px-4 text-sm text-zinc-900 dark:text-white font-mono focus:outline-none focus:border-blue-500 dark:focus:border-blue-500/50 focus:bg-white dark:focus:bg-black/60 transition-all shadow-inner" 
                     />
                   </div>
@@ -80,10 +115,10 @@ export default function InitializeEscrowPage() {
                 <div>
                   <label className="text-[10px] uppercase tracking-widest font-bold text-zinc-500 mb-3 block">Asset Token</label>
                   <div className="relative">
-                    <select className="w-full bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl py-3.5 pl-4 pr-10 text-sm text-zinc-900 dark:text-white font-mono appearance-none focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-black/60 transition-all cursor-pointer">
-                      <option>-- Select --</option>
-                      <option>USDC (Base)</option>
-                      <option>ETH (Mainnet)</option>
+                    <select value={currency} onChange={(event) => setCurrency(event.target.value)} className="w-full bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl py-3.5 pl-4 pr-10 text-sm text-zinc-900 dark:text-white font-mono appearance-none focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-black/60 transition-all cursor-pointer">
+                      <option value="USD">USDC (Base)</option>
+                      <option value="EUR">EUR</option>
+                      <option value="GBP">GBP</option>
                     </select>
                     <ChevronDown size={14} className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 pointer-events-none" />
                   </div>
@@ -94,6 +129,8 @@ export default function InitializeEscrowPage() {
                     <input 
                       type="number" 
                       placeholder="0.00" 
+                      value={budget}
+                      onChange={(event) => setBudget(event.target.value)}
                       className="w-full bg-zinc-50 dark:bg-black/40 border border-zinc-200 dark:border-white/10 rounded-xl py-3.5 px-4 text-sm text-zinc-900 dark:text-white font-mono focus:outline-none focus:border-emerald-500 dark:focus:border-emerald-500/50 focus:bg-white dark:focus:bg-black/60 transition-all shadow-inner" 
                     />
                   </div>
@@ -119,38 +156,38 @@ export default function InitializeEscrowPage() {
               <div className="flex flex-col gap-5 mb-8 flex-1">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-zinc-500 font-medium">Escrow Principal</span>
-                  <span className="font-mono text-zinc-900 dark:text-zinc-400">--</span>
+                  <span className="font-mono text-zinc-900 dark:text-zinc-400">{preview ? formatMoney(amount, currency) : "--"}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-zinc-500 font-medium">Network Fee (0.1%)</span>
-                  <span className="font-mono text-zinc-900 dark:text-zinc-400">--</span>
+                  <span className="font-mono text-zinc-900 dark:text-zinc-400">{preview ? formatMoney(preview.fee, currency) : "--"}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-zinc-500 font-medium">Gas Estimate</span>
-                  <span className="font-mono text-zinc-900 dark:text-zinc-400">--</span>
+                  <span className="font-mono text-zinc-900 dark:text-zinc-400">Backend derived</span>
                 </div>
                 
                 <div className="h-px w-full bg-zinc-100 dark:bg-white/5 my-2" />
                 <div className="flex justify-between items-center">
-                  <div className="h-4 w-24 bg-zinc-200 dark:bg-white/5 rounded animate-pulse" />
-                  <div className="h-4 w-12 bg-zinc-200 dark:bg-white/5 rounded animate-pulse" />
+                  <span className="text-zinc-500">Backend funding source</span>
+                  <span className="font-mono text-zinc-400">{currency}</span>
                 </div>
               </div>
 
               <div className="flex justify-between items-end mb-8 pt-6 border-t border-zinc-200 dark:border-white/10">
                 <span className="text-sm font-bold text-zinc-900 dark:text-white uppercase tracking-wider">Total Lock</span>
-                <span className="text-3xl font-bold font-mono text-zinc-900 dark:text-white tracking-tight">--</span>
+                <span className="text-3xl font-bold font-mono text-zinc-900 dark:text-white tracking-tight">{preview ? formatMoney(preview.total, currency) : "--"}</span>
               </div>
 
-              <button className="group w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 dark:bg-white px-8 py-4 text-sm font-bold text-white dark:text-black transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-xl dark:hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
-                Deploy Smart Contract 
+              <button disabled={isLoading} onClick={() => void handleDeploy()} className="group w-full flex items-center justify-center gap-2 rounded-xl bg-zinc-900 dark:bg-white px-8 py-4 text-sm font-bold text-white dark:text-black transition-all hover:bg-zinc-800 dark:hover:bg-zinc-200 shadow-lg dark:shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-xl dark:hover:shadow-[0_0_30px_rgba(255,255,255,0.3)] disabled:opacity-50 disabled:cursor-not-allowed">
+                {isLoading ? "Deploying..." : "Deploy Smart Contract"}
                 <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />
               </button>
               
               <div className="flex items-center justify-center gap-2 mt-6">
                 <Cpu size={12} className="text-zinc-400 dark:text-zinc-600" />
                 <p className="text-[10px] text-zinc-500 font-mono tracking-wider uppercase">
-                  Awaiting backend connection...
+                   {message || error || "Connected to the AutoEscrow API"}
                 </p>
               </div>
 
