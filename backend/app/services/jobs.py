@@ -19,7 +19,7 @@ def transition_job(job: Job, target: str) -> Job:
     return job
 
 
-def create_job(db: Session, payload: JobCreate) -> Job:
+def create_job(db: Session, payload: JobCreate, *, demo_session_id: str | None = None) -> Job:
     # Map the public create contract explicitly. In particular, status is
     # never copied from client input and always starts at the central initial
     # state for this workflow.
@@ -37,6 +37,7 @@ def create_job(db: Session, payload: JobCreate) -> Job:
         requester_agent_id=payload.requester_agent_id,
         requirements=payload.requirements,
         status=INITIAL_JOB_STATUS,
+        demo_session_id=demo_session_id,
     )
     db.add(job)
     db.flush()
@@ -53,8 +54,11 @@ def create_job(db: Session, payload: JobCreate) -> Job:
     return job
 
 
-def get_job(db: Session, job_id: int) -> Job | None:
-    return db.get(Job, job_id)
+def get_job(db: Session, job_id: int, *, demo_session_id: str | None = None) -> Job | None:
+    job = db.get(Job, job_id)
+    if demo_session_id is not None and (job is None or job.demo_session_id != demo_session_id):
+        return None
+    return job
 
 
 def list_jobs(
@@ -69,6 +73,7 @@ def list_jobs(
     skip: int = 0,
     limit: int = 100,
     sort: str = "newest",
+    demo_session_id: str | None = None,
 ) -> tuple[list[Job], int]:
     query = select(Job)
     count_query = select(func.count()).select_from(Job)
@@ -97,6 +102,9 @@ def list_jobs(
     if requester_agent_id:
         query = query.where(Job.requester_agent_id == requester_agent_id)
         count_query = count_query.where(Job.requester_agent_id == requester_agent_id)
+    if demo_session_id is not None:
+        query = query.where(Job.demo_session_id == demo_session_id)
+        count_query = count_query.where(Job.demo_session_id == demo_session_id)
     total = db.scalar(count_query) or 0
     if sort == "deadline":
         ordering = (Job.deadline.asc(), Job.id.asc())

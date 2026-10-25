@@ -3,11 +3,13 @@
 from decimal import Decimal
 from typing import Literal
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.config import get_settings
+from app.demo_auth import get_demo_session
 from app.schemas import (
     MAX_JOB_BUDGET,
     JobCreate,
@@ -38,11 +40,22 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.post("", response_model=JobSummary, status_code=201, summary="Create a job")
-def create_new_job(payload: JobCreate, db: Session = Depends(get_db)) -> JobSummary:
+def create_new_job(payload: JobCreate, request: Request, db: Session = Depends(get_db)) -> JobSummary:
+    session_id = get_demo_session(request)
+    if session_id is not None:
+        from decimal import Decimal
+
+        if payload.requester_agent_id is not None:
+            raise HTTPException(status_code=422, detail="Demo requester identity is the session, not an agent id. Omit requester_agent_id.")
+        if payload.budget > Decimal(get_settings().demo_max_job_budget):
+            raise HTTPException(status_code=422, detail="demo job budget exceeds the sandbox limit")
+        existing_count = list_jobs(db, demo_session_id=session_id, limit=1)[1]
+        if existing_count >= max(1, get_settings().demo_max_jobs_per_session):
+            raise HTTPException(status_code=429, detail="demo session job limit reached; reset the demo to start over")
     if payload.requester_agent_id is not None and not agent_exists(db, payload.requester_agent_id):
         raise HTTPException(status_code=404, detail="requester agent not found")
     try:
-        return create_job(db, payload)
+        return JobSummary.model_validate(create_job(db, payload, demo_session_id=session_id))
     except IntegrityError as exc:
         db.rollback()
         raise HTTPException(status_code=409, detail="job could not be created") from exc
@@ -50,6 +63,7 @@ def create_new_job(payload: JobCreate, db: Session = Depends(get_db)) -> JobSumm
 
 @router.get("", response_model=JobListResponse, summary="List jobs")
 def list_registered_jobs(
+    request: Request,
     status: JobStatus | None = Query(default=None),
     task_category: str | None = Query(default=None, min_length=1, max_length=120),
     min_budget: Decimal | None = Query(default=None, gt=Decimal("0"), le=MAX_JOB_BUDGET, max_digits=18, decimal_places=2),
@@ -61,6 +75,7 @@ def list_registered_jobs(
     sort: Literal["newest", "deadline"] = Query(default="newest"),
     db: Session = Depends(get_db),
 ) -> JobListResponse:
+    session_id = get_demo_session(request)
     normalized_category = task_category.strip() if task_category is not None else None
     normalized_search = search.strip() if search is not None else None
     if task_category is not None and not normalized_category:
@@ -80,16 +95,18 @@ def list_registered_jobs(
         skip=skip,
         limit=limit,
         sort=sort,
+        demo_session_id=session_id,
     )
-    return JobListResponse(items=jobs, total=total)
+    return JobListResponse(items=[JobSummary.model_validate(job) for job in jobs], total=total)
 
 
 @router.get("/{job_id}", response_model=JobSummary, summary="Get a job")
-def get_registered_job(job_id: int, db: Session = Depends(get_db)) -> JobSummary:
-    job = get_job(db, job_id)
+def get_registered_job(job_id: int, request: Request, db: Session = Depends(get_db)) -> JobSummary:
+    session_id = get_demo_session(request)
+    job = get_job(db, job_id, demo_session_id=session_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return job
+    return JobSummary.model_validate(job)
 
 
 def _match_run_response(
@@ -113,8 +130,9 @@ def _match_run_response(
 
 
 @router.post("/{job_id}/matches", response_model=MatchRunResponse, status_code=201, summary="Compute agent matches")
-def compute_job_matches(job_id: int, db: Session = Depends(get_db)) -> MatchRunResponse:
-    job = get_job(db, job_id)
+def compute_job_matches(job_id: int, request: Request, db: Session = Depends(get_db)) -> MatchRunResponse:
+    session_id = get_demo_session(request)
+    job = get_job(db, job_id, demo_session_id=session_id)
     if job is None:
         raise HTTPException(status_code=404, detail="job not found")
     try:
@@ -136,8 +154,9 @@ def compute_job_matches(job_id: int, db: Session = Depends(get_db)) -> MatchRunR
     responses={204: {"description": "No persisted matching run exists for this job"}},
     summary="Get the latest persisted agent matches",
 )
-def get_latest_job_matches(job_id: int, db: Session = Depends(get_db)) -> MatchRunResponse | Response:
-    if get_job(db, job_id) is None:
+def get_latest_job_matches(job_id: int, request: Request, db: Session = Depends(get_db)) -> MatchRunResponse | Response:
+    session_id = get_demo_session(request)
+    if get_job(db, job_id, demo_session_id=session_id) is None:
         raise HTTPException(status_code=404, detail="job not found")
     latest = latest_persisted_run(db, job_id)
     if latest is None:
@@ -157,10 +176,12 @@ def get_latest_job_matches(job_id: int, db: Session = Depends(get_db)) -> MatchR
 def select_job_agent(
     job_id: int,
     agent_id: int,
+    request: Request,
     payload: MatchSelectionRequest | None = Body(default=None),
     db: Session = Depends(get_db),
 ) -> JobSummary:
-    if get_job(db, job_id) is None:
+    session_id = get_demo_session(request)
+    if get_job(db, job_id, demo_session_id=session_id) is None:
         raise HTTPException(status_code=404, detail="job not found")
     try:
         job, _candidate, _run_id, _created_event = select_agent_after_revalidation(
@@ -182,11 +203,12 @@ def select_job_agent(
             status_code=409,
             detail={"message": "agent is not eligible for this job", "reasons": list(exc.reasons)},
         ) from exc
-    return job
+    return JobSummary.model_validate(job)
 
 
 @router.get("/{job_id}/events", response_model=list[JobEventResponse], summary="List job audit events")
-def get_job_events(job_id: int, db: Session = Depends(get_db)) -> list[JobEventResponse]:
-    if get_job(db, job_id) is None:
+def get_job_events(job_id: int, request: Request, db: Session = Depends(get_db)) -> list[JobEventResponse]:
+    session_id = get_demo_session(request)
+    if get_job(db, job_id, demo_session_id=session_id) is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return list_job_events(db, job_id)
+    return [JobEventResponse.model_validate(event) for event in list_job_events(db, job_id)]

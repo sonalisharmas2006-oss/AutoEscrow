@@ -1,1 +1,23 @@
-node_modules
+# Private configuration and local state. Review already tracked files manually.
+.env
+.env.*
+!.env.example
+**/.env
+**/.env.*
+!**/.env.example
+*.db
+*.sqlite3
+*.sqlite
+*.db-*
+.venv/
+**/.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+*.log
+playwright-report/
+test-results/
+desktop.ini

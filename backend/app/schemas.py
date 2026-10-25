@@ -68,6 +68,10 @@ class APIModel(BaseModel):
     def serialize_decimal(self, value: Any) -> Any:
         """Serialize NUMERIC values as fixed-point strings without float loss."""
 
+        if isinstance(value, datetime):
+            # SQLite returns naive datetimes for timezone=True columns. Domain
+            # writes are UTC, so serialize them consistently with PostgreSQL.
+            return (value if value.tzinfo else value.replace(tzinfo=timezone.utc)).isoformat()
         return format(value, ".2f") if isinstance(value, Decimal) else value
 
 

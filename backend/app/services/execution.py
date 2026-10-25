@@ -8,6 +8,7 @@ from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
 from app.job_states import InvalidJobTransition
+from app.config import get_settings
 from app.models import Agent, Agreement, AuditEvent, Dispute, Escrow, Job, Submission, Verification
 from app.schemas import ExecutionResponse
 from app.services.audit import record_event
@@ -124,7 +125,8 @@ def _execution_status(db: Session, job: Job, can_start: bool, latest: Submission
         return "awaiting_verification"
     if job.status == "under_review":
         if verification is not None and verification.overall_result == "failed":
-            return "retry_available"
+            retries_left = latest is not None and latest.version < max(0, get_settings().max_submission_retries) + 1
+            return "retry_available" if retries_left else "blocked"
         if verification is not None and verification.overall_result == "manual_review":
             return "manual_review"
         return "awaiting_verification"
@@ -146,6 +148,7 @@ def get_execution(db: Session, job_id: int) -> ExecutionResponse:
     can_start = job.status == "assigned" and ready
     can_submit = job.status == "in_progress" or (
         job.status == "under_review" and verification is not None and verification.overall_result == "failed"
+        and latest is not None and latest.version < max(0, get_settings().max_submission_retries) + 1
     )
     can_verify = job.status == "submitted" and latest is not None and verification is None
     submit_reason = (
@@ -153,6 +156,8 @@ def get_execution(db: Session, job_id: int) -> ExecutionResponse:
         if can_submit
         else "A submission is available only while execution is awaiting a result or a failed check allows a retry."
     )
+    if latest and verification and verification.overall_result == "failed" and not can_submit:
+        submit_reason = "The submission retry limit has been reached. Review the failure or open a dispute."
     verify_reason = (
         "The latest submission is ready for deterministic verification."
         if can_verify

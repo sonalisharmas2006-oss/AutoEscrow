@@ -74,7 +74,7 @@ def _safe_json_bytes(value: dict) -> int:
     return len(json.dumps(value, separators=(",", ":"), ensure_ascii=True).encode("utf-8"))
 
 
-def require_demo_operator(operator_identifier: str | None) -> str:
+def require_demo_operator(operator_identifier: str | None, *, sandbox_authorized: bool = False) -> str:
     """Require the explicit development/test operator boundary.
 
     This is intentionally not authentication. It is a narrow local-demo guard
@@ -83,8 +83,10 @@ def require_demo_operator(operator_identifier: str | None) -> str:
 
     settings = get_settings()
     operator = (operator_identifier or "").strip()
-    if settings.app_env.lower() not in {"development", "test"}:
+    if settings.app_env.lower() not in {"development", "test"} and not sandbox_authorized:
         raise DisputeAuthorizationError("demo dispute resolution is disabled outside development and test environments")
+    if sandbox_authorized and not settings.demo_public_resolution_enabled:
+        raise DisputeAuthorizationError("public demo dispute resolution is disabled")
     if not operator or len(operator) > MAX_OPERATOR_IDENTIFIER_LENGTH:
         raise DisputeAuthorizationError("a valid demo operator identifier is required")
     if operator != settings.demo_resolution_operator:
@@ -233,8 +235,8 @@ def create_dispute(db: Session, job_id: int, payload: DisputeCreate) -> Dispute:
         raise
 
 
-def review_dispute(db: Session, dispute_id: int, operator_identifier: str, payload: DisputeReviewRequest | None = None) -> Dispute:
-    operator = require_demo_operator(operator_identifier)
+def review_dispute(db: Session, dispute_id: int, operator_identifier: str, payload: DisputeReviewRequest | None = None, *, sandbox_authorized: bool = False) -> Dispute:
+    operator = require_demo_operator(operator_identifier, sandbox_authorized=sandbox_authorized)
     try:
         dispute = db.scalar(select(Dispute).where(Dispute.id == dispute_id).with_for_update())
         if dispute is None:
@@ -276,8 +278,9 @@ def resolve_dispute(
     dispute_id: int,
     operator_identifier: str,
     payload: DisputeResolveRequest,
+    *, sandbox_authorized: bool = False,
 ) -> Dispute:
-    operator = require_demo_operator(operator_identifier)
+    operator = require_demo_operator(operator_identifier, sandbox_authorized=sandbox_authorized)
     if payload.resolution not in DISPUTE_RESOLUTIONS:
         raise DisputeResolutionError("invalid dispute resolution outcome")
     try:

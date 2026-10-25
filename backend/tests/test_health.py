@@ -60,6 +60,12 @@ def test_frontend_origin_setting_is_exact_and_production_has_no_implicit_origins
     assert production == ["https://app.example", "https://admin.example"]
 
 
+def test_environment_normalization_does_not_bypass_production_boundaries():
+    assert Settings(app_env=" Production ", _env_file=None).app_env == "production"
+    with pytest.raises(ValueError):
+        Settings(app_env="prod", _env_file=None)
+
+
 def test_readiness_endpoint_checks_the_database(client) -> None:
     response = client.get("/api/ready")
 

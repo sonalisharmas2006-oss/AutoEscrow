@@ -34,6 +34,13 @@ from sqlalchemy.orm import Session
 from app.job_states import is_open_for_matching
 from app.models import Agent, Job, MatchResult, utc_now
 from app.services.audit import record_event
+from app.services.agents import list_agents, get_agent
+
+
+def _registry(db: Session, job: Job) -> list[Agent]:
+    if job.demo_session_id:
+        return list_agents(db, synthetic_only=True)[0]
+    return list(db.scalars(select(Agent).order_by(Agent.id.asc(), Agent.name.asc())).all())
 
 SCORING_VERSION = "phase5-v1"
 MATCHING_ENGINE_VERSION = SCORING_VERSION
@@ -412,7 +419,7 @@ def compute_and_persist_matches(
             f"job state {job.status!r} does not permit matching; only 'open' jobs are eligible."
         )
     computed_at = now or utc_now()
-    agents = list(db.scalars(select(Agent).order_by(Agent.id.asc(), Agent.name.asc())).all())
+    agents = _registry(db, job)
     candidates = rank_candidates(job, agents, now=computed_at, weights=weights)
     run_id, timestamp = persist_match_results(
         db,
@@ -472,9 +479,7 @@ def select_agent_after_revalidation(
                         run_id = latest[0]
                     else:
                         computed_at = utc_now()
-                        agents = list(
-                            db.scalars(select(Agent).order_by(Agent.id.asc(), Agent.name.asc())).all()
-                        )
+                        agents = _registry(db, job)
                         candidates = rank_candidates(job, agents, now=computed_at)
                         run_id, _ = persist_match_results(
                             db,
@@ -507,12 +512,12 @@ def select_agent_after_revalidation(
             return job, existing_candidate, job.selected_match_run_id, False
         raise DifferentAgentAlreadySelectedError("a different agent is already selected for this job")
 
-    agent = db.get(Agent, agent_id)
+    agent = get_agent(db, agent_id, synthetic_only=bool(job.demo_session_id))
     if agent is None:
         raise AgentNotFoundForSelectionError("agent not found")
 
     computed_at = utc_now()
-    agents = list(db.scalars(select(Agent).order_by(Agent.id.asc(), Agent.name.asc())).all())
+    agents = _registry(db, job)
     candidates = rank_candidates(job, agents, now=computed_at)
     candidate_by_id = {candidate.agent_id: candidate for candidate in candidates}
     candidate = candidate_by_id[agent_id]

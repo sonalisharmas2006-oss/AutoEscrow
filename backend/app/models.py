@@ -31,6 +31,14 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+class DemoSessionRecord(Base):
+    __tablename__ = "demo_sessions"
+    id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    mutations: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class Agent(Base):
     __tablename__ = "agents"
     __table_args__ = (
@@ -99,10 +107,14 @@ class Job(Base):
         Index("ix_jobs_status_deadline", "status", "deadline"),
         Index("ix_jobs_requester_agent_id", "requester_agent_id"),
         Index("ix_jobs_selected_agent_id", "selected_agent_id"),
+        Index("ix_jobs_demo_session_id", "demo_session_id"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     public_id: Mapped[str] = mapped_column(String(80), nullable=False, default=lambda: f"job-{uuid4().hex}")
+    # Null marks local/seeded data. Public demo jobs always carry the signed
+    # sandbox session id used to authorize their job-scoped reads and writes.
+    demo_session_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
     # Legacy associations remain optional. Job creation is independent of an
     # Agent record; selected_agent_id is the explicit current association.
     requester_agent_id: Mapped[int | None] = mapped_column(ForeignKey("agents.id"))

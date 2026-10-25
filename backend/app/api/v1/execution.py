@@ -1,9 +1,11 @@
 """Execution, submission, and deterministic verification endpoints."""
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.demo_auth import get_demo_session
+from app.services.jobs import get_job
 from app.models import Job, Submission
 from app.schemas import (
     ExecutionResponse,
@@ -117,7 +119,9 @@ def _verification_response(db: Session, verification) -> VerificationResponse:
     response_model=ExecutionResponse,
     summary="Start a funded local demo execution",
 )
-def start_job_execution(job_id: int, db: Session = Depends(get_db)) -> ExecutionResponse:
+def start_job_execution(job_id: int, request: Request, db: Session = Depends(get_db)) -> ExecutionResponse:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
+        raise HTTPException(status_code=404, detail="job not found")
     try:
         return start_execution(db, job_id)
     except Exception as exc:
@@ -130,7 +134,9 @@ def start_job_execution(job_id: int, db: Session = Depends(get_db)) -> Execution
     response_model=ExecutionResponse,
     summary="Get persisted execution state and eligibility",
 )
-def get_job_execution(job_id: int, db: Session = Depends(get_db)) -> ExecutionResponse:
+def get_job_execution(job_id: int, request: Request, db: Session = Depends(get_db)) -> ExecutionResponse:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
+        raise HTTPException(status_code=404, detail="job not found")
     try:
         return get_execution(db, job_id)
     except Exception as exc:
@@ -147,8 +153,11 @@ def get_job_execution(job_id: int, db: Session = Depends(get_db)) -> ExecutionRe
 def submit_job_output(
     job_id: int,
     payload: SubmissionCreate,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> SubmissionResponse:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
+        raise HTTPException(status_code=404, detail="job not found")
     try:
         return create_submission(db, job_id, payload)
     except Exception as exc:
@@ -161,10 +170,10 @@ def submit_job_output(
     response_model=list[SubmissionResponse],
     summary="List immutable job submissions",
 )
-def get_job_submissions(job_id: int, db: Session = Depends(get_db)) -> list[SubmissionResponse]:
-    if db.get(Job, job_id) is None:
+def get_job_submissions(job_id: int, request: Request, db: Session = Depends(get_db)) -> list[SubmissionResponse]:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
         raise HTTPException(status_code=404, detail="job not found")
-    return list_submissions(db, job_id)
+    return [SubmissionResponse.model_validate(item) for item in list_submissions(db, job_id)]
 
 
 @router.post(
@@ -172,7 +181,9 @@ def get_job_submissions(job_id: int, db: Session = Depends(get_db)) -> list[Subm
     response_model=VerificationResponse,
     summary="Deterministically verify the latest submission",
 )
-def verify_job_submission(job_id: int, db: Session = Depends(get_db)) -> VerificationResponse:
+def verify_job_submission(job_id: int, request: Request, db: Session = Depends(get_db)) -> VerificationResponse:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
+        raise HTTPException(status_code=404, detail="job not found")
     try:
         verification = verify_latest_submission(db, job_id)
         return _verification_response(db, verification)
@@ -187,8 +198,8 @@ def verify_job_submission(job_id: int, db: Session = Depends(get_db)) -> Verific
     responses={204: {"description": "No verification exists for this job"}},
     summary="Get the latest persisted verification",
 )
-def get_job_verification(job_id: int, db: Session = Depends(get_db)) -> VerificationResponse | Response:
-    if db.get(Job, job_id) is None:
+def get_job_verification(job_id: int, request: Request, db: Session = Depends(get_db)) -> VerificationResponse | Response:
+    if get_job(db, job_id, demo_session_id=get_demo_session(request)) is None:
         raise HTTPException(status_code=404, detail="job not found")
     verification = latest_verification(db, job_id)
     if verification is None:

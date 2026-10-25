@@ -1,7 +1,9 @@
 """Environment-backed application settings."""
 
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,7 +19,7 @@ DEVELOPMENT_FRONTEND_ORIGINS = (
 
 class Settings(BaseSettings):
     app_name: str = "Auto Escrow API"
-    app_env: str = "development"
+    app_env: Literal["development", "test", "production"] = "development"
     database_url: str = "sqlite:///./auto_escrow.db"
     # Tests can point the application at an isolated database without changing
     # the normal development URL.  It is selected when APP_ENV=test.
@@ -27,6 +29,23 @@ class Settings(BaseSettings):
     # deployment can lower or raise it without changing the state machine.
     max_submission_retries: int = 2
     demo_resolution_operator: str = "demo-operator"
+    demo_session_secret: str = ""
+    demo_session_ttl_seconds: int = 3600
+    demo_max_jobs_per_session: int = 3
+    demo_max_job_budget: str = "500.00"
+    demo_rate_limit_per_minute: int = 300
+    demo_max_request_bytes: int = 200000
+    demo_public_resolution_enabled: bool = True
+    # Gated by default until deployment-specific PostgreSQL and abuse checks pass.
+    demo_public_access: bool = False
+    demo_access_code: str = ""
+    demo_max_sessions: int = 200
+    demo_max_mutations_per_session: int = 100
+
+    @field_validator("app_env", mode="before")
+    @classmethod
+    def normalize_environment(cls, value: str) -> str:
+        return value.strip().lower()
 
     model_config = SettingsConfigDict(
         env_file=".env",

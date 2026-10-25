@@ -1,10 +1,11 @@
 """Dispute creation, review, resolution, and audit endpoints."""
 
-from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.demo_auth import get_demo_session, public_demo_operator
 from app.models import Agreement, Job, Submission
 from app.schemas import (
     DisputeCreate,
@@ -58,6 +59,23 @@ def _dispute_error(exc: Exception) -> None:
     ):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     raise exc
+
+
+def _scoped_job(db: Session, job_id: int, request: Request) -> tuple[Job, str | None]:
+    session_id = get_demo_session(request)
+    job = db.get(Job, job_id)
+    if job is None or (session_id is not None and job.demo_session_id != session_id):
+        raise HTTPException(status_code=404, detail="job not found")
+    return job, session_id
+
+
+def _scoped_dispute(db: Session, dispute_id: int, request: Request):
+    session_id = get_demo_session(request)
+    dispute = get_dispute(db, dispute_id)
+    job = db.get(Job, dispute.job_id) if dispute is not None else None
+    if dispute is None or job is None or (session_id is not None and job.demo_session_id != session_id):
+        raise HTTPException(status_code=404, detail="dispute not found")
+    return dispute, session_id
 
 
 def _verification_response(db: Session, verification) -> VerificationResponse | None:
@@ -152,7 +170,8 @@ def _response(db: Session, dispute, *, detail: bool = False) -> DisputeResponse:
     status_code=201,
     summary="Open a dispute for a funded job escrow",
 )
-def create_job_dispute(job_id: int, payload: DisputeCreate, db: Session = Depends(get_db)) -> DisputeResponse:
+def create_job_dispute(job_id: int, payload: DisputeCreate, request: Request, db: Session = Depends(get_db)) -> DisputeResponse:
+    _scoped_job(db, job_id, request)
     try:
         return _response(db, create_dispute(db, job_id, payload))
     except Exception as exc:
@@ -163,26 +182,32 @@ def create_job_dispute(job_id: int, payload: DisputeCreate, db: Session = Depend
 @router.get("/jobs/{job_id}/disputes", response_model=list[DisputeResponse], summary="List disputes for a job")
 def get_job_disputes(
     job_id: int,
+    request: Request,
     status: DisputeStatus | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[DisputeResponse]:
-    if db.get(Job, job_id) is None:
-        raise HTTPException(status_code=404, detail="job not found")
+    _scoped_job(db, job_id, request)
     return [_response(db, dispute) for dispute in list_job_disputes(db, job_id, status)]
 
 
 @router.get("/disputes", response_model=list[DisputeResponse], summary="List all disputes")
 def get_dispute_registry(
+    request: Request,
     status: DisputeStatus | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> list[DisputeResponse]:
-    return [_response(db, dispute) for dispute in list_disputes(db, status)]
+    session_id = get_demo_session(request)
+    disputes = list_disputes(db, status)
+    if session_id is not None:
+        disputes = [dispute for dispute in disputes if (db.get(Job, dispute.job_id) and db.get(Job, dispute.job_id).demo_session_id == session_id)]
+    return [_response(db, dispute) for dispute in disputes]
 
 
 @router.get("/disputes/{dispute_id}", response_model=DisputeResponse, summary="Get dispute details")
-def get_dispute_details(dispute_id: int, db: Session = Depends(get_db)) -> DisputeResponse:
+def get_dispute_details(dispute_id: int, request: Request, db: Session = Depends(get_db)) -> DisputeResponse:
     dispute = get_dispute(db, dispute_id)
-    if dispute is None:
+    session_id = get_demo_session(request)
+    if dispute is None or db.get(Job, dispute.job_id) is None or (session_id is not None and db.get(Job, dispute.job_id).demo_session_id != session_id):
         raise HTTPException(status_code=404, detail="dispute not found")
     return _response(db, dispute, detail=True)
 
@@ -190,12 +215,15 @@ def get_dispute_details(dispute_id: int, db: Session = Depends(get_db)) -> Dispu
 @router.post("/disputes/{dispute_id}/review", response_model=DisputeResponse, summary="Start demo-operator dispute review")
 def start_dispute_review(
     dispute_id: int,
+    request: Request,
     payload: DisputeReviewRequest | None = Body(default=None),
     x_demo_operator: str | None = Header(default=None, alias="X-Demo-Operator"),
     db: Session = Depends(get_db),
 ) -> DisputeResponse:
+    dispute, session_id = _scoped_dispute(db, dispute_id, request)
     try:
-        return _response(db, review_dispute(db, dispute_id, x_demo_operator or "", payload), detail=True)
+        operator = public_demo_operator(session_id) or x_demo_operator or ""
+        return _response(db, review_dispute(db, dispute_id, operator, payload, sandbox_authorized=bool(session_id)), detail=True)
     except Exception as exc:
         _dispute_error(exc)
         raise AssertionError("unreachable")
@@ -204,21 +232,30 @@ def start_dispute_review(
 @router.post("/disputes/{dispute_id}/resolve", response_model=DisputeResponse, summary="Resolve a dispute through the demo operator boundary")
 def resolve_existing_dispute(
     dispute_id: int,
+    request: Request,
     payload: DisputeResolveRequest,
     x_demo_operator: str | None = Header(default=None, alias="X-Demo-Operator"),
     db: Session = Depends(get_db),
 ) -> DisputeResponse:
+    dispute, session_id = _scoped_dispute(db, dispute_id, request)
+    if session_id and payload.resolution == "release":
+        from app.services.verification import latest_verification
+        verification = latest_verification(db, dispute.job_id)
+        if verification is None or verification.overall_result != "passed":
+            raise HTTPException(status_code=409, detail="The public demo cannot override failed or missing verification to release funds.")
     try:
-        return _response(db, resolve_dispute(db, dispute_id, x_demo_operator or "", payload), detail=True)
+        operator = public_demo_operator(session_id) or x_demo_operator or ""
+        return _response(db, resolve_dispute(db, dispute_id, operator, payload, sandbox_authorized=bool(session_id)), detail=True)
     except Exception as exc:
         _dispute_error(exc)
         raise AssertionError("unreachable")
 
 
 @router.get("/disputes/{dispute_id}/events", response_model=list[JobEventResponse], summary="List dispute audit events")
-def get_dispute_audit_events(dispute_id: int, db: Session = Depends(get_db)) -> list[JobEventResponse]:
+def get_dispute_audit_events(dispute_id: int, request: Request, db: Session = Depends(get_db)) -> list[JobEventResponse]:
+    _scoped_dispute(db, dispute_id, request)
     try:
-        return list_dispute_events(db, dispute_id)
+        return [JobEventResponse.model_validate(event) for event in list_dispute_events(db, dispute_id)]
     except Exception as exc:
         _dispute_error(exc)
         raise AssertionError("unreachable")

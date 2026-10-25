@@ -30,6 +30,10 @@ def readiness_check(db: Session = Depends(get_db)) -> dict[str, str] | JSONRespo
 
     try:
         db.execute(text("SELECT 1")).scalar_one()
+        # Connectivity alone is insufficient: both the business schema and
+        # session migration must exist before the service accepts demo traffic.
+        db.execute(text("SELECT demo_session_id FROM jobs LIMIT 1"))
+        db.execute(text("SELECT mutations FROM demo_sessions LIMIT 1"))
     except SQLAlchemyError:
         return JSONResponse(
             status_code=503,

@@ -1,21 +1,38 @@
 # Auto Escrow backend
 
-FastAPI + SQLAlchemy 2 + Alembic backend for the Auto Escrow job, matching, agreement, simulated escrow, execution, verification, dispute, and audit workflows. SQLite is the default local database; PostgreSQL is supported through the configured SQLAlchemy URL. Phase 11 added ledger reconciliation, retry-state, seed-boundary, and migration hardening.
+FastAPI + SQLAlchemy 2 + Alembic backend for jobs, matching, agreements, simulated escrow, execution, verification, disputes, and audit workflows. SQLite is the tested local default. PostgreSQL URL/driver support exists, but deployment must verify an actual PostgreSQL instance before launch. Migrations 0011–0012 add demo ownership and persisted expiring sessions.
 
 ## Setup
 
 From the repository root on Windows PowerShell:
 
 ```powershell
-py -3.11 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install --upgrade pip
-python -m pip install -r backend\requirements.txt
 Set-Location backend
-python -m alembic upgrade head
+if (-not (Test-Path .venv\Scripts\python.exe)) { python -m venv .venv }
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+.\.venv\Scripts\python.exe -m pip install -r requirements.txt
 ```
 
-The application never creates, resets, drops, or downgrades tables during startup.
+Python 3.14.4 passed the full suite in a clean virtual environment. No activation or execution-policy change is required with these explicit interpreter paths. Python 3.11 and the existing Docker image were not tested here.
+
+Windows CMD alternative, from the repository root:
+
+```bat
+cd backend
+if not exist .venv\Scripts\python.exe python -m venv .venv
+if not exist .env copy .env.example .env
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+
+Privately check that the real `.env` targets the intended **local SQLite** database in development mode. Stop the API and back up any existing DB before the following commands (same syntax in PowerShell and CMD):
+
+```text
+.\.venv\Scripts\python.exe -m alembic upgrade head
+.\.venv\Scripts\python.exe -m app.seed
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The application never creates, resets, drops, or downgrades tables during startup. Full variable descriptions and defaults are in `../docs/ENVIRONMENT.md`. Never expose development mode beyond loopback: its no-header API deliberately retains legacy unscoped behavior.
 
 ## Environment
 
@@ -41,25 +58,23 @@ The current chain is:
   -> 0006_matching_results
   -> 0007_agreement_negotiation
   -> 0008_simulated_escrow_lifecycle
-   -> 0009_dispute_workflow
-   -> 0010_harden_ledger_idempotency (head)
+  -> 0009_dispute_workflow
+  -> 0010_harden_ledger_idempotency
+  -> 0011_demo_session_scope
+  -> 0012_demo_sessions (head)
 ```
 
 Run:
 
 ```powershell
-make migrate
+python -m alembic upgrade head
 python -m alembic current
 ```
 
-For a disposable SQLite migration check only:
+For a disposable SQLite migration check (the test creates a temporary file and verifies legacy-row preservation):
 
 ```powershell
-$env:APP_ENV = "test"
-$env:TEST_DATABASE_URL = "sqlite:///./phase2-check.sqlite3"
-python -m alembic upgrade head
-python -m alembic downgrade base
-python -m alembic upgrade head
+python -m pytest -q tests/test_demo_migrations.py
 ```
 
 Do not run downgrade commands against a production database.
@@ -84,6 +99,17 @@ events and is safe to rerun without duplicating workflow records.
 
 The command is repeatable and does not reset existing records. Seed records are marked as synthetic demo data in their metadata. It refuses to run unless `APP_ENV` is `development` or `test`; never point it at a production database.
 
+The browser uses scoped sessions, so unscoped seeded jobs do **not** appear in its workspace. Create jobs through `/demo/` for a presentation. Profile performance statistics in the seed are synthetic fixtures, not measured results.
+
+For a dedicated hosted **synthetic-only** database, the operator CLI provides explicit agent-only seeding without bypassing production mode:
+
+```text
+python -m app.demo_admin seed-agents --confirm-synthetic-database
+python -m app.demo_admin cleanup-expired --confirm-synthetic-database
+```
+
+The first command inserts missing synthetic profiles, does not modify existing ones, and refuses a colliding private profile. The second permanently deletes expired sessions and their owned workflow children, preserving live and unscoped records. It does not reset all users. Pause API traffic before operator maintenance: the CLI does not share the web process's mutation lock. Do not seed or clean up automatically at application startup.
+
 The dashboard risk score is a calculated 0–100 metric where higher is riskier:
 50 points when any dispute is open or under review, up to 20 points for the
 largest funded/held escrow relative to the maximum job budget, up to 15 points
@@ -98,11 +124,14 @@ python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 - Health: `http://127.0.0.1:8000/api/health`
+- Database/schema readiness: `http://127.0.0.1:8000/api/ready`
 - Docs: `http://127.0.0.1:8000/docs`
 - Versioned API: `http://127.0.0.1:8000/api/v1`
 
 ## API surface
 
+- `POST /api/v1/demo/session` (optional `{ "access_code": "..." }`; never log real codes)
+- `POST /api/v1/demo/session/reset` (requires the current signed credential)
 - `GET /api/v1/agents`
 - `GET /api/v1/agents/{agent_id}`
 - `POST /api/v1/jobs`
@@ -148,6 +177,8 @@ is either `newest` (the default) or `deadline`. Budget values use fixed-point
 Decimal validation, and job creation always starts in the centralized `open`
 state. The create request trims and normalizes text and required skills and
 rejects client-supplied workflow or assignment state fields.
+
+Production calls require `X-Demo-Session`, except issuance. Use `APP_ENV=production`, a private random signing secret, `DEMO_PUBLIC_ACCESS=false`, and a presenter access code. Run one worker/instance. See the gated deployment walkthrough and launch blockers in `../docs/DEPLOYMENT.md` and `../docs/SECURITY_REVIEW.md`.
 
 ## Phase 5 matching
 

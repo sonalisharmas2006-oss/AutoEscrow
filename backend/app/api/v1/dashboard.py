@@ -1,9 +1,10 @@
 """Persisted dashboard metrics endpoint."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.demo_auth import get_demo_session
 from app.models import Submission
 from app.schemas import DashboardMetrics, DashboardExecutionMetrics, VerificationResponse
 from app.services.dashboard import get_execution_metrics, get_metrics
@@ -12,8 +13,8 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
 @router.get("/metrics", response_model=DashboardMetrics, summary="Get dashboard metrics")
-def dashboard_metrics(db: Session = Depends(get_db)) -> DashboardMetrics:
-    return DashboardMetrics(**get_metrics(db))
+def dashboard_metrics(request: Request, db: Session = Depends(get_db)) -> DashboardMetrics:
+    return DashboardMetrics(**get_metrics(db, demo_session_id=get_demo_session(request)))
 
 
 @router.get(
@@ -21,8 +22,8 @@ def dashboard_metrics(db: Session = Depends(get_db)) -> DashboardMetrics:
     response_model=DashboardExecutionMetrics,
     summary="Get persisted execution and verification dashboard data",
 )
-def dashboard_execution(db: Session = Depends(get_db)) -> DashboardExecutionMetrics:
-    data = get_execution_metrics(db)
+def dashboard_execution(request: Request, db: Session = Depends(get_db)) -> DashboardExecutionMetrics:
+    data = get_execution_metrics(db, demo_session_id=get_demo_session(request))
     recent_verifications: list[VerificationResponse] = []
     for verification in data["recent_verifications"]:
         submission = db.get(Submission, verification.submission_id)
