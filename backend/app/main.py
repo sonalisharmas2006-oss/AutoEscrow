@@ -11,9 +11,19 @@ app = FastAPI(title=settings.app_name, version="0.1.0", description="AI-agent ag
 app.include_router(health_router, prefix="/api")
 app.include_router(v1_router)
 app.add_middleware(DemoLimits)
+
 # CORS must wrap admission errors too, so the frontend can explain 413/429.
-app.add_middleware(CORSMiddleware, allow_origins=get_frontend_origins(settings), allow_credentials=False,
-                   allow_methods=["GET", "POST", "OPTIONS"], allow_headers=["Content-Type", "X-Demo-Session", "X-Demo-Operator"])
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://autoescrowfrontend.vercel.app",  # Your production Vercel frontend URL
+        "http://localhost:3000",                  # Local development
+        "http://127.0.0.1:3000"
+    ],
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+    allow_headers=["Content-Type", "X-Demo-Session", "X-Demo-Operator", "Authorization"],
+)
 
 
 @app.get("/", tags=["meta"])
