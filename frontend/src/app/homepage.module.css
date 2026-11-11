@@ -1,195 +1,81 @@
-/* Homepage-scoped cyber aesthetic styling */
+/* Futuristic AI Infrastructure & Cybersecurity styling for homepage */
 
 .homepageRoot {
-  background-color: #05060D;
-  color: #f1f5f9;
+  background-color: #05060A;
+  color: #F5F7FF;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Glassmorphism cyber container */
-.glassPanel {
-  background: rgba(8, 13, 26, 0.65);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(56, 189, 248, 0.14);
+/* Seamless translucent section container */
+.sectionSurface {
+  background: rgba(12, 18, 32, 0.45);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: 
-    0 20px 50px rgba(0, 0, 0, 0.65),
-    0 0 30px rgba(14, 165, 233, 0.04),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 24px 60px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   position: relative;
 }
 
-.glassPanel::before {
+.sectionSurface::before {
   content: "";
   position: absolute;
   top: 0;
-  left: 10%;
-  right: 10%;
+  left: 15%;
+  right: 15%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(56, 189, 248, 0.35), rgba(167, 139, 250, 0.35), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0, 200, 255, 0.3), rgba(136, 85, 255, 0.3), transparent);
   pointer-events: none;
 }
 
-/* Individual feature and step cards */
+/* Individual feature and workflow cards */
 .cyberCard {
-  background: rgba(12, 19, 36, 0.55);
+  background: rgba(12, 18, 32, 0.5);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
-  box-shadow: 
-    0 10px 30px rgba(0, 0, 0, 0.4),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
-  overflow: hidden;
 }
 
 .cyberCard:hover {
-  background: rgba(15, 24, 48, 0.75);
-  border-color: rgba(56, 189, 248, 0.35);
+  background: rgba(15, 24, 44, 0.7);
+  border-color: rgba(0, 200, 255, 0.3);
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.6),
-    0 0 25px rgba(56, 189, 248, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12);
-  transform: translateY(-3px);
+    0 16px 40px rgba(0, 0, 0, 0.55),
+    0 0 25px rgba(0, 200, 255, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
 }
 
-.cyberCard::after {
-  content: "";
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: 40px;
-  height: 40px;
-  background: radial-gradient(circle at top right, rgba(56, 189, 248, 0.15), transparent 70%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.cyberCard:hover::after {
-  opacity: 1;
-}
-
-/* Primary cyber glow CTA button */
-.primaryCta {
-  background: linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #4f46e5 100%);
-  color: #ffffff;
-  border: 1px solid rgba(125, 211, 252, 0.3);
-  box-shadow: 
-    0 0 25px rgba(14, 165, 233, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
-}
-
-.primaryCta:hover {
-  background: linear-gradient(135deg, #0ea5e9 0%, #3b82f6 50%, #6366f1 100%);
-  box-shadow: 
-    0 0 35px rgba(14, 165, 233, 0.6),
-    0 0 10px rgba(255, 255, 255, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.4);
-  transform: translateY(-1px) scale(1.02);
-  border-color: rgba(186, 230, 253, 0.5);
-}
-
-.primaryCta:active {
-  transform: translateY(1px) scale(0.99);
-}
-
-/* Secondary outline button */
+/* Secondary understated CTA button */
 .secondaryCta {
-  background: rgba(15, 23, 42, 0.65);
+  background: rgba(12, 18, 32, 0.5);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(148, 163, 184, 0.25);
-  color: #e2e8f0;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  color: #A0A9BC;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .secondaryCta:hover {
-  background: rgba(30, 41, 59, 0.8);
-  border-color: rgba(56, 189, 248, 0.45);
-  color: #ffffff;
+  background: rgba(16, 26, 48, 0.75);
+  border-color: rgba(0, 200, 255, 0.4);
+  color: #F5F7FF;
   box-shadow: 
-    0 6px 25px rgba(0, 0, 0, 0.5),
-    0 0 20px rgba(56, 189, 248, 0.15);
+    0 6px 25px rgba(0, 0, 0, 0.45),
+    0 0 20px rgba(0, 200, 255, 0.15);
   transform: translateY(-1px);
-}
-
-/* Cyber pill status badge */
-.cyberBadge {
-  background: rgba(8, 28, 48, 0.6);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  box-shadow: 0 0 16px rgba(14, 165, 233, 0.12);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  color: #38bdf8;
-}
-
-/* Robot cutout integration */
-.robotCutoutGlow {
-  filter: drop-shadow(0 0 35px rgba(56, 189, 248, 0.28)) 
-          drop-shadow(0 15px 35px rgba(0, 0, 0, 0.85));
-}
-
-/* Hero background atmospheric frame */
-.heroGlowFrame {
-  position: absolute;
-  right: -5%;
-  top: 5%;
-  width: 90%;
-  height: 85%;
-  border-radius: 50%;
-  border: 1px solid rgba(56, 189, 248, 0.2);
-  box-shadow: 
-    0 0 90px rgba(14, 165, 233, 0.18),
-    inset 0 0 50px rgba(139, 92, 246, 0.12);
-  pointer-events: none;
-}
-
-/* Home-scoped override for the floating bottom workspace dock */
-.homepageRoot :global([aria-label="Workspace dock"]) {
-  background: rgba(8, 14, 28, 0.78) !important;
-  backdrop-filter: blur(24px) !important;
-  -webkit-backdrop-filter: blur(24px) !important;
-  border-color: rgba(56, 189, 248, 0.2) !important;
-  color: #94a3b8 !important;
-  box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.7),
-    0 0 25px rgba(14, 165, 233, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1) !important;
-}
-
-.homepageRoot :global([aria-label="Workspace dock"] a) {
-  color: #94a3b8 !important;
-}
-
-.homepageRoot :global([aria-label="Workspace dock"] a:hover) {
-  color: #38bdf8 !important;
-  background: rgba(56, 189, 248, 0.14) !important;
-}
-
-.homepageRoot :global([aria-label="Workspace dock"] [aria-current="page"]) {
-  background: rgba(56, 189, 248, 0.22) !important;
-  color: #38bdf8 !important;
-  border: 1px solid rgba(56, 189, 248, 0.35) !important;
-  box-shadow: 0 0 15px rgba(6, 182, 212, 0.25) !important;
-}
-
-.homepageRoot :global(#mobile-links) {
-  background: rgba(8, 14, 28, 0.95) !important;
-  border-color: rgba(56, 189, 248, 0.25) !important;
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8) !important;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .cyberCard,
-  .primaryCta,
   .secondaryCta {
     transition: none !important;
     transform: none !important;

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -11,8 +10,15 @@ import {
   ShieldCheck,
   WalletCards,
 } from "lucide-react";
-import Sidebar from "@/components/layout/Sidebar";
 import CyberBackground from "./CyberBackground";
+import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
+import { ThemeToggler } from "@/components/animate-ui/buttons/theme-toggler";
+import {
+  Cursor,
+  CursorFollow,
+  CursorProvider,
+} from "@/components/animate-ui/primitives/cursor";
+import { PageTransition } from "@/components/animate-ui/components/page-transition";
 import styles from "./homepage.module.css";
 
 const workflow = [
@@ -38,289 +44,254 @@ const featureCards = [
 
 export default function Home() {
   return (
-    <main className={`relative flex min-h-screen w-full overflow-x-hidden ${styles.homepageRoot}`}>
-      {/* Sophisticated holographic & animated cyber background */}
-      <CyberBackground />
+    <CursorProvider global>
+      <Cursor />
+      <CursorFollow />
 
-      {/* Floating dock from existing workspace navigation */}
-      <Sidebar />
+      <main className={`relative flex min-h-screen w-full flex-col overflow-x-hidden ${styles.homepageRoot}`}>
+        {/* Full-viewport living particle network & holographic sphere background */}
+        <CyberBackground />
 
-      <div className="relative z-10 min-w-0 flex-1">
-        {/* HERO SECTION */}
-        <section className="relative isolate overflow-hidden border-b border-cyan-500/10">
-          <div className="relative mx-auto w-full max-w-7xl px-6 pb-20 pt-6 sm:px-8 lg:px-12 lg:pb-28 lg:pt-9">
-            {/* Navigation Bar */}
-            <nav className="mb-16 flex items-center justify-between gap-5 lg:mb-20">
-              <Link href="/" className="group flex items-center gap-3 font-semibold tracking-tight text-white">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-400/40 bg-gradient-to-br from-cyan-500/20 to-blue-600/30 text-xs font-mono font-bold text-cyan-200 shadow-[0_0_16px_rgba(6,182,212,0.25)] transition duration-300 group-hover:border-cyan-400/70 group-hover:shadow-[0_0_24px_rgba(6,182,212,0.45)]">
+        <PageTransition effect="fade" duration={0.3} className="relative z-10 flex min-w-0 flex-1 flex-col">
+          {/* TOP NAVIGATION */}
+          <header className="relative mx-auto w-full max-w-7xl px-6 pt-6 sm:px-8 lg:px-12 lg:pt-8">
+            <nav className="flex items-center justify-between gap-6" aria-label="Main Navigation">
+              {/* Brand Logo */}
+              <Link href="/" className="group flex items-center gap-3 font-semibold tracking-tight text-[#F5F7FF]">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#00C8FF]/40 bg-gradient-to-br from-[#00C8FF]/20 to-[#536DFF]/30 font-mono text-xs font-bold text-[#00C8FF] shadow-[0_0_16px_rgba(0,200,255,0.25)] transition duration-300 group-hover:border-[#00C8FF]/80 group-hover:shadow-[0_0_24px_rgba(0,200,255,0.45)]">
                   AE
                 </span>
-                <span className="text-base font-semibold tracking-tight text-white">Auto Escrow</span>
+                <span className="text-base font-semibold tracking-tight text-[#F5F7FF]">Auto Escrow</span>
               </Link>
 
-              <div className="hidden items-center gap-8 text-sm font-medium text-slate-300 md:flex">
+              {/* Navigation Links */}
+              <div className="hidden items-center gap-8 text-sm font-medium text-[#A0A9BC] md:flex">
                 <Link
                   href="/marketplace"
-                  className="transition-colors duration-200 hover:text-cyan-300 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
                 >
                   Agent marketplace
                 </Link>
                 <Link
                   href="/demo"
-                  className="transition-colors duration-200 hover:text-cyan-300 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
                 >
                   Guided demo
                 </Link>
                 <Link
                   href="/settings"
-                  className="transition-colors duration-200 hover:text-cyan-300 hover:drop-shadow-[0_0_8px_rgba(56,189,248,0.5)]"
+                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
                 >
                   Settings
                 </Link>
               </div>
 
-              <Link
-                href="/demo"
-                className={`inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-sm font-semibold ${styles.primaryCta}`}
-              >
-                Try the prototype <ArrowRight size={16} />
-              </Link>
+              {/* Theme Toggler & Prototype CTA */}
+              <div className="flex items-center gap-3">
+                <ThemeToggler variant="default" size="default" system={false} />
+
+                <Link href="/demo">
+                  <LiquidButton
+                    delay={0.25}
+                    fillHeight={3}
+                    tapScale={0.97}
+                    className="px-4 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-sm"
+                  >
+                    Try the prototype <ArrowRight size={15} />
+                  </LiquidButton>
+                </Link>
+              </div>
             </nav>
+          </header>
 
-            {/* Main Hero Card */}
-            <div className={`grid gap-10 rounded-3xl p-6 md:p-8 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:gap-14 lg:p-12 ${styles.glassPanel}`}>
-              <div className="relative z-10 w-full max-w-none p-2 md:p-4 lg:-ml-2 lg:pr-4">
-                {/* Status Pill Badge */}
-                <div className={`mb-6 inline-flex items-center gap-2.5 rounded-full px-3.5 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] ${styles.cyberBadge}`}>
-                  <span className="relative flex h-2 w-2">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />
-                  </span>
-                  Synthetic demo available
-                </div>
+          {/* CINEMATIC HERO SECTION (No card, no container, no robot, text directly over animated background) */}
+          <section className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-6 pb-24 pt-16 sm:px-8 sm:pt-24 lg:px-12 lg:pb-32 lg:pt-28">
+            <div className="max-w-3xl">
+              {/* Main Headline */}
+              <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.035em] text-[#F5F7FF] sm:text-6xl lg:text-7xl">
+                Make AI-agent work{" "}
+                <span className="inline-block bg-gradient-to-r from-[#00C8FF] via-[#536DFF] to-[#8855FF] bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(0,200,255,0.45)]">
+                  easier to trust.
+                </span>
+              </h1>
 
-                {/* Hero Headline */}
-                <h1 className="text-4xl font-semibold leading-[1.08] tracking-[-0.035em] text-white md:text-5xl lg:text-6xl">
-                  <span className="inline-block whitespace-nowrap">Make AI-agent</span>{" "}
-                  <span className="inline-block whitespace-nowrap">work easier</span>{" "}
-                  <span className="inline-block whitespace-nowrap bg-gradient-to-r from-sky-400 via-cyan-300 to-indigo-400 bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(56,189,248,0.45)]">
-                    to trust.
-                  </span>
-                </h1>
+              {/* Descriptive Paragraph */}
+              <p className="mt-8 max-w-2xl text-lg font-normal leading-8 text-[#A0A9BC] md:text-xl">
+                Auto Escrow helps a requester define the job, compare explainable matches, agree on terms, record simulated escrow, verify the result, and review what happened.
+              </p>
 
-                {/* Hero Description */}
-                <p className="mt-7 max-w-2xl text-lg font-normal leading-8 text-slate-300/90 md:text-xl">
-                  Auto Escrow helps a requester define the job, compare explainable matches, agree on terms, record simulated escrow, verify the result, and review what happened.
-                </p>
-
-                {/* CTA Action Buttons */}
-                <div className="mt-9 flex flex-col gap-3.5 sm:flex-row">
-                  <Link
-                    href="/demo"
-                    className={`inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-bold ${styles.primaryCta}`}
+              {/* Two Carefully Positioned CTAs */}
+              <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
+                <Link href="/demo">
+                  <LiquidButton
+                    delay={0.3}
+                    fillHeight={3}
+                    tapScale={0.97}
+                    className="px-7 py-3.5 text-sm font-semibold shadow-[0_0_25px_rgba(0,200,255,0.35)]"
                   >
                     Try the guided demo <ArrowRight size={17} />
-                  </Link>
-                  <Link
-                    href="/marketplace"
-                    className={`inline-flex items-center justify-center gap-2 rounded-full px-6 py-3.5 text-sm font-semibold ${styles.secondaryCta}`}
-                  >
-                    <Search size={17} className="text-cyan-400" /> Browse agents
-                  </Link>
-                </div>
+                  </LiquidButton>
+                </Link>
 
-                {/* Trust Verification Tags */}
-                <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-slate-400">
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
-                    Versioned agreements
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
-                    Deterministic verification
-                  </span>
-                  <span className="flex items-center gap-2">
-                    <span className="h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_6px_#22d3ee]" />
-                    Simulated ledger only
-                  </span>
-                </div>
-              </div>
-
-              {/* Robot Asset Integration Column */}
-              <div className="relative min-h-[480px] w-full overflow-hidden rounded-[1.75rem] p-2 md:min-h-[580px] lg:min-h-[660px] lg:translate-x-2">
-                {/* Ambient glow backing the robot asset */}
-                <div className="pointer-events-none absolute -right-20 top-1/2 h-[520px] w-[520px] -translate-y-1/2 rounded-full bg-[radial-gradient(circle_at_center,rgba(14,165,233,0.22),rgba(99,102,241,0.12)_42%,transparent_72%)] blur-3xl" />
-                <div className="pointer-events-none absolute right-[12%] top-[20%] h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.25),rgba(168,85,247,0.1)_38%,transparent_72%)] blur-2xl" />
-
-                {/* Subtle cyber reticle frame */}
-                <div className={styles.heroGlowFrame} />
-
-                {/* Grounding shadow beneath robot */}
-                <div className="pointer-events-none absolute bottom-4 right-[6%] h-12 w-[82%] rounded-full bg-black/80 blur-2xl" />
-
-                {/* Robot image asset preserved and integrated */}
-                <Image
-                  src="/robot-head-cutout.png"
-                  alt="Detailed synthetic metallic robot head"
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 100vw, 650px"
-                  className={`relative z-10 origin-bottom-right scale-[1.12] object-contain object-right-bottom md:scale-[1.22] lg:scale-[1.34] ${styles.robotCutoutGlow}`}
-                />
+                <Link
+                  href="/marketplace"
+                  className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium ${styles.secondaryCta}`}
+                >
+                  <Search size={17} className="text-[#00C8FF]" /> Browse agents
+                </Link>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* PROOF POINTS BAR */}
-        <section className="relative z-10 mx-auto -mt-10 w-full max-w-7xl px-6 sm:px-8 lg:px-12">
-          <div className={`rounded-3xl p-6 md:p-8 ${styles.glassPanel}`}>
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
-              <p className="max-w-xs font-mono text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
+          {/* PROOF POINTS STRIP */}
+          <section className="relative w-full border-y border-white/[0.08] bg-[#090D18]/50 py-7 backdrop-blur-xl">
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
+              <p className="shrink-0 font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
                 What this prototype proves
               </p>
               <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {proofPoints.map((item) => (
-                  <div key={item} className="flex items-start gap-2.5 text-sm font-medium leading-6 text-slate-200">
-                    <CheckCircle2 size={17} className="mt-1 shrink-0 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.55)]" />
+                  <div key={item} className="flex items-start gap-2.5 text-sm font-medium leading-6 text-[#F5F7FF]">
+                    <CheckCircle2 size={17} className="mt-1 shrink-0 text-[#00C8FF] drop-shadow-[0_0_8px_rgba(0,200,255,0.6)]" />
                     <span>{item}</span>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        {/* THE PROBLEM & WORKFLOW SECTION */}
-        <section className="mx-auto w-full max-w-7xl px-6 py-20 sm:px-8 lg:px-12 lg:py-24">
-          <div className={`rounded-3xl p-7 md:p-10 ${styles.glassPanel}`}>
-            <div className="grid gap-8 lg:grid-cols-[.72fr_1.28fr] lg:items-end">
-              <div>
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-                  The problem
+          {/* THE PROBLEM & WORKFLOW SECTION */}
+          <section className="mx-auto w-full max-w-7xl px-6 py-20 sm:px-8 lg:px-12 lg:py-28">
+            <div className={`rounded-3xl p-8 md:p-12 ${styles.sectionSurface}`}>
+              <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
+                <div>
+                  <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
+                    The problem
+                  </p>
+                  <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-[#F5F7FF] sm:text-4xl md:text-5xl">
+                    Trust should be a workflow, not a promise.
+                  </h2>
+                </div>
+                <p className="max-w-2xl text-lg font-normal leading-8 text-[#A0A9BC]">
+                  When AI agents coordinate work, people still need a clear brief, an understandable match, agreed terms, and a way to see why money can—or cannot—be released. Auto Escrow makes those transitions visible in one place.
                 </p>
-                <h2 className="mt-4 text-4xl font-semibold tracking-[-0.035em] text-white md:text-5xl">
-                  Trust should be a workflow, not a promise.
-                </h2>
               </div>
-              <p className="max-w-2xl text-lg font-normal leading-8 text-slate-300">
-                When AI agents coordinate work, people still need a clear brief, an understandable match, agreed terms, and a way to see why money can—or cannot—be released. Auto Escrow makes those transitions visible in one place.
-              </p>
-            </div>
 
-            <div className="mt-12 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-              {workflow.map((item) => (
-                <div
-                  key={item.number}
-                  className={`rounded-2xl p-6 ${styles.cyberCard}`}
-                >
-                  <span className="font-mono text-xs font-bold tracking-[0.2em] text-cyan-400">
-                    {item.number}
-                  </span>
-                  <h3 className="mt-10 text-xl font-semibold text-white">
-                    {item.title}
-                  </h3>
-                  <p className="mt-3 text-sm font-normal leading-6 text-slate-300/85">
-                    {item.text}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* BUILT FOR CLARITY / FEATURES SECTION */}
-        <section className="mx-auto w-full max-w-7xl px-6 py-4 sm:px-8 lg:px-12 lg:py-8">
-          <div className={`grid gap-10 rounded-3xl p-7 md:p-10 lg:grid-cols-[.9fr_1.1fr] lg:items-center ${styles.glassPanel}`}>
-            <div>
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-cyan-400">
-                Built for clarity
-              </p>
-              <h2 className="mt-4 text-4xl font-semibold tracking-[-0.035em] text-white">
-                A calmer surface for consequential steps.
-              </h2>
-              <p className="mt-5 max-w-2xl text-base font-normal leading-7 text-slate-300">
-                The internal workspace uses the current FastAPI workflow and keeps the details available when you need them—without asking a first-time visitor to understand APIs, ledgers, or state machines.
-              </p>
-              <Link
-                href="/demo"
-                className={`mt-8 inline-flex items-center gap-2 rounded-full px-5 py-3 text-sm font-semibold ${styles.primaryCta}`}
-              >
-                Open the guided workspace <ArrowRight size={16} />
-              </Link>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              {featureCards.map(([Icon, title, text]) => (
-                <div
-                  key={title}
-                  className={`rounded-2xl p-5 ${styles.cyberCard}`}
-                >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-cyan-500/30 bg-cyan-950/40 text-cyan-300 shadow-[0_0_14px_rgba(6,182,212,0.2)]">
-                    <Icon size={20} />
+              <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+                {workflow.map((item) => (
+                  <div
+                    key={item.number}
+                    className={`rounded-2xl p-6 ${styles.cyberCard}`}
+                  >
+                    <span className="font-mono text-xs font-bold tracking-[0.2em] text-[#00C8FF]">
+                      {item.number}
+                    </span>
+                    <h3 className="mt-8 text-xl font-semibold text-[#F5F7FF]">
+                      {item.title}
+                    </h3>
+                    <p className="mt-3 text-sm font-normal leading-6 text-[#A0A9BC]">
+                      {item.text}
+                    </p>
                   </div>
-                  <h3 className="mt-6 text-base font-semibold text-white">
-                    {title}
-                  </h3>
-                  <p className="mt-2 text-sm font-normal leading-6 text-slate-300/85">
-                    {text}
-                  </p>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* BUILT FOR CLARITY SECTION */}
+          <section className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-12 lg:py-8">
+            <div className={`grid gap-10 rounded-3xl p-8 md:p-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center ${styles.sectionSurface}`}>
+              <div>
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
+                  Built for clarity
+                </p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-[#F5F7FF] sm:text-4xl">
+                  A calmer surface for consequential steps.
+                </h2>
+                <p className="mt-6 max-w-2xl text-base font-normal leading-7 text-[#A0A9BC]">
+                  The internal workspace uses the current FastAPI workflow and keeps the details available when you need them—without asking a first-time visitor to understand APIs, ledgers, or state machines.
+                </p>
+                <div className="mt-8">
+                  <Link href="/demo">
+                    <LiquidButton
+                      delay={0.25}
+                      fillHeight={3}
+                      tapScale={0.97}
+                      className="px-6 py-3 text-sm font-semibold"
+                    >
+                      Open the guided workspace <ArrowRight size={16} />
+                    </LiquidButton>
+                  </Link>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
+              </div>
 
-        {/* PROTOTYPE NOTE SECTION */}
-        <section className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-8 lg:px-12 lg:py-20">
-          <div className={`flex flex-col justify-between gap-7 rounded-3xl p-7 md:flex-row md:items-center md:p-10 ${styles.glassPanel}`}>
-            <div>
-              <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-cyan-400">
-                Prototype note
-              </p>
-              <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white md:text-3xl">
-                Synthetic data. Simulated escrow. Real workflow rules.
-              </h2>
-              <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-slate-300/85">
-                This is a hackathon MVP. It does not process payments, hold funds, run arbitrary code, provide production authentication, or make claims about real-world agent performance.
-              </p>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {featureCards.map(([Icon, title, text]) => (
+                  <div
+                    key={title}
+                    className={`rounded-2xl p-5 ${styles.cyberCard}`}
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#00C8FF]/30 bg-[#00C8FF]/10 text-[#00C8FF] shadow-[0_0_14px_rgba(0,200,255,0.2)]">
+                      <Icon size={20} />
+                    </div>
+                    <h3 className="mt-5 text-base font-semibold text-[#F5F7FF]">
+                      {title}
+                    </h3>
+                    <p className="mt-2 text-sm font-normal leading-6 text-[#A0A9BC]">
+                      {text}
+                    </p>
+                  </div>
+                ))}
+              </div>
             </div>
-            <Link
-              href="/demo"
-              className={`inline-flex shrink-0 items-center justify-center gap-2 rounded-full px-5 py-3.5 text-sm font-semibold ${styles.primaryCta}`}
-            >
-              Start with a sample task <ArrowRight size={16} />
-            </Link>
-          </div>
-        </section>
+          </section>
 
-        {/* FOOTER */}
-        <footer className="border-t border-slate-800/80 bg-[#05060d]/80 backdrop-blur-xl">
-          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-            <span>Auto Escrow · synthetic hackathon prototype</span>
-            <div className="flex gap-6">
-              <Link
-                href="/demo"
-                className="transition-colors hover:text-cyan-300"
-              >
-                Guided demo
-              </Link>
-              <Link
-                href="/marketplace"
-                className="transition-colors hover:text-cyan-300"
-              >
-                Marketplace
-              </Link>
-              <Link
-                href="/settings"
-                className="transition-colors hover:text-cyan-300"
-              >
-                Settings
+          {/* PROTOTYPE NOTE SECTION */}
+          <section className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-8 lg:px-12 lg:py-20">
+            <div className={`flex flex-col justify-between gap-8 rounded-3xl p-8 md:flex-row md:items-center md:p-12 ${styles.sectionSurface}`}>
+              <div>
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#00C8FF]">
+                  Prototype note
+                </p>
+                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-[#F5F7FF] md:text-3xl">
+                  Synthetic data. Simulated escrow. Real workflow rules.
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-[#A0A9BC]">
+                  This is a hackathon MVP. It does not process payments, hold funds, run arbitrary code, provide production authentication, or make claims about real-world agent performance.
+                </p>
+              </div>
+              <Link href="/demo">
+                <LiquidButton
+                  delay={0.25}
+                  fillHeight={3}
+                  tapScale={0.97}
+                  className="shrink-0 px-6 py-3.5 text-sm font-semibold"
+                >
+                  Start with a sample task <ArrowRight size={16} />
+                </LiquidButton>
               </Link>
             </div>
-          </div>
-        </footer>
-      </div>
-    </main>
+          </section>
+
+          {/* FOOTER */}
+          <footer className="border-t border-white/[0.08] bg-[#05060A]/80 backdrop-blur-xl">
+            <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-[#A0A9BC] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
+              <span>Auto Escrow · synthetic hackathon prototype</span>
+              <div className="flex gap-6">
+                <Link href="/demo" className="transition-colors hover:text-[#00C8FF]">
+                  Guided demo
+                </Link>
+                <Link href="/marketplace" className="transition-colors hover:text-[#00C8FF]">
+                  Marketplace
+                </Link>
+                <Link href="/settings" className="transition-colors hover:text-[#00C8FF]">
+                  Settings
+                </Link>
+              </div>
+            </div>
+          </footer>
+        </PageTransition>
+      </main>
+    </CursorProvider>
   );
 }
