@@ -1,81 +1,93 @@
-/* Futuristic AI Infrastructure & Cybersecurity styling for homepage */
+/* Futuristic Monochrome AI Infrastructure styling for homepage */
 
 .homepageRoot {
-  background-color: #05060A;
-  color: #F5F7FF;
+  background-color: #000000;
+  color: #FFFFFF;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Seamless translucent section container */
-.sectionSurface {
-  background: rgba(12, 18, 32, 0.45);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+/* Translucent Monochrome Glass Panel */
+.glassPanel {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
   box-shadow: 
-    0 24px 60px rgba(0, 0, 0, 0.6),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    0 16px 40px rgba(0, 0, 0, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   position: relative;
 }
 
-.sectionSurface::before {
+:global(:root:not(.dark)) .glassPanel {
+  background: rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
+}
+
+.glassPanel::before {
   content: "";
   position: absolute;
   top: 0;
-  left: 15%;
-  right: 15%;
+  left: 20%;
+  right: 20%;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(0, 200, 255, 0.3), rgba(136, 85, 255, 0.3), transparent);
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
   pointer-events: none;
 }
 
-/* Individual feature and workflow cards */
-.cyberCard {
-  background: rgba(12, 18, 32, 0.5);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+/* Individual Feature and Workflow Cards */
+.monochromeCard {
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   position: relative;
 }
 
-.cyberCard:hover {
-  background: rgba(15, 24, 44, 0.7);
-  border-color: rgba(0, 200, 255, 0.3);
+:global(:root:not(.dark)) .monochromeCard {
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
+}
+
+.monochromeCard:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
   box-shadow: 
-    0 16px 40px rgba(0, 0, 0, 0.55),
-    0 0 25px rgba(0, 200, 255, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    0 14px 35px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(255, 255, 255, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
   transform: translateY(-2px);
 }
 
-/* Secondary understated CTA button */
+/* Secondary Understated Monochrome Button */
 .secondaryCta {
-  background: rgba(12, 18, 32, 0.5);
+  background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  color: #A0A9BC;
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #CCCCCC;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .secondaryCta:hover {
-  background: rgba(16, 26, 48, 0.75);
-  border-color: rgba(0, 200, 255, 0.4);
-  color: #F5F7FF;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #FFFFFF;
   box-shadow: 
-    0 6px 25px rgba(0, 0, 0, 0.45),
-    0 0 20px rgba(0, 200, 255, 0.15);
+    0 6px 20px rgba(0, 0, 0, 0.45),
+    0 0 15px rgba(255, 255, 255, 0.1);
   transform: translateY(-1px);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .cyberCard,
+  .monochromeCard,
   .secondaryCta {
     transition: none !important;
     transform: none !important;

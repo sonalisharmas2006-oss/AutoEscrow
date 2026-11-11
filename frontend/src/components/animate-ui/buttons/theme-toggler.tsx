@@ -16,13 +16,13 @@ export const themeTogglerButtonVariants = (props?: {
   const size = props?.size ?? "default";
 
   const base =
-    "relative inline-flex items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00C8FF]";
+    "relative inline-flex items-center justify-center rounded-full transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white";
   const variants = {
     default:
-      "bg-[#0C1220]/80 text-[#F5F7FF] border border-white/10 hover:border-[#00C8FF]/40 hover:bg-[#090D18] shadow-[0_0_15px_rgba(0,0,0,0.4)]",
+      "bg-[#111111]/80 text-[#FFFFFF] border border-white/20 hover:border-white/50 hover:bg-[#1A1A1A] shadow-[0_0_15px_rgba(0,0,0,0.5)] dark:bg-[#0C0C0C]/90 dark:border-white/15 dark:hover:border-white/40",
     outline:
-      "border border-white/20 text-[#A0A9BC] hover:text-[#F5F7FF] hover:border-[#00C8FF]/50",
-    ghost: "text-[#A0A9BC] hover:text-[#F5F7FF] hover:bg-white/5",
+      "border border-white/20 text-[#CCCCCC] hover:text-[#FFFFFF] hover:border-white/60",
+    ghost: "text-[#CCCCCC] hover:text-[#FFFFFF] hover:bg-white/10",
   };
   const sizes = {
     default: "h-9 w-9",
@@ -141,8 +141,8 @@ export function ThemeTogglerButtonIcon({
         {activeTheme === "system" && system
           ? system
           : isLight
-          ? light ?? <Sun size={17} className="text-amber-400" />
-          : dark ?? <Moon size={17} className="text-[#00C8FF]" />}
+          ? light ?? <Sun size={16} className="text-[#111111]" />
+          : dark ?? <Moon size={16} className="text-[#FFFFFF]" />}
       </motion.span>
     </AnimatePresence>
   );
@@ -192,9 +192,9 @@ export function ThemeToggler({
       className={className}
     >
       <ThemeTogglerButtonIcon
-        light={<Sun size={17} className="text-amber-400" />}
-        dark={<Moon size={17} className="text-[#00C8FF]" />}
-        system={<Monitor size={17} className="text-[#8855FF]" />}
+        light={<Sun size={16} className="text-[#111111]" />}
+        dark={<Moon size={16} className="text-[#FFFFFF]" />}
+        system={<Monitor size={16} className="text-[#BDBDBD]" />}
       />
     </ThemeTogglerButton>
   );

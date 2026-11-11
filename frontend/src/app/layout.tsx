@@ -7,14 +7,13 @@ export const metadata = {
   description: "A synthetic AI-agent workflow prototype with versioned agreements, simulated escrow, verification, and audit records.",
 };
 
-// --- OPTIMIZED INSTANT BACKGROUND (Zero Layout Thrashing, Dark & Light) ---
+// --- OPTIMIZED MONOCHROME AMBIENT BACKGROUND (Zero Layout Thrashing, Pure Monochrome) ---
 function AmbientBackground() {
   return (
     <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden will-change-transform">
-      <div className="absolute inset-0 bg-gradient-to-tr from-slate-100 via-sky-50/50 to-slate-200 dark:from-[#05060A] dark:via-[#090D18] dark:to-[#05060A]" />
-      <div className="absolute -right-[12%] -top-[18%] h-[62vw] w-[62vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(255,255,255,.66),rgba(186,230,253,.2)_44%,transparent_72%)] dark:bg-[radial-gradient(circle_at_center,rgba(0,200,255,0.08),rgba(83,109,255,0.04)_44%,transparent_72%)] blur-3xl" />
-      <div className="absolute -bottom-[24%] -left-[14%] h-[68vw] w-[68vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(148,163,184,.22),rgba(186,230,253,.2)_42%,transparent_72%)] dark:bg-[radial-gradient(circle_at_center,rgba(136,85,255,0.06),rgba(0,200,255,0.03)_42%,transparent_72%)] blur-3xl" />
-      <div className="absolute right-[8%] top-[18%] h-[34vw] w-[34vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(251,191,36,.1),rgba(226,232,240,.16)_46%,transparent_74%)] dark:bg-[radial-gradient(circle_at_center,rgba(83,109,255,0.08),rgba(0,200,255,0.04)_46%,transparent_74%)] blur-3xl" />
+      <div className="absolute inset-0 bg-[#FFFFFF] dark:bg-[#000000] transition-colors duration-300" />
+      <div className="absolute -right-[10%] -top-[15%] h-[55vw] w-[55vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.03),transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.03),transparent_70%)] blur-2xl" />
+      <div className="absolute -bottom-[20%] -left-[10%] h-[60vw] w-[60vw] rounded-full bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.02),transparent_70%)] dark:bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.02),transparent_70%)] blur-2xl" />
     </div>
   );
 }
@@ -22,7 +21,7 @@ function AmbientBackground() {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className="bg-transparent text-slate-900 dark:text-[#F5F7FF] antialiased font-sans">
+      <body className="bg-transparent text-black dark:text-[#FFFFFF] antialiased font-sans">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

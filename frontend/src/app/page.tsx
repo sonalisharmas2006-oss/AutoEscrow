@@ -1,16 +1,19 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
   CheckCircle2,
   FileCheck2,
   LockKeyhole,
+  Menu,
   Search,
   ShieldCheck,
   WalletCards,
+  X,
 } from "lucide-react";
-import CyberBackground from "./CyberBackground";
+import { InteractiveSectionParticles } from "@/components/particles/InteractiveSectionParticles";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
 import { ThemeToggler } from "@/components/animate-ui/buttons/theme-toggler";
 import {
@@ -18,7 +21,6 @@ import {
   CursorFollow,
   CursorProvider,
 } from "@/components/animate-ui/primitives/cursor";
-import { PageTransition } from "@/components/animate-ui/components/page-transition";
 import styles from "./homepage.module.css";
 
 const workflow = [
@@ -43,169 +45,244 @@ const featureCards = [
 ] as const;
 
 export default function Home() {
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <CursorProvider global>
       <Cursor />
       <CursorFollow />
 
       <main className={`relative flex min-h-screen w-full flex-col overflow-x-hidden ${styles.homepageRoot}`}>
-        {/* Full-viewport living particle network & holographic sphere background */}
-        <CyberBackground />
+        {/* PERMANENT TOP NAVIGATION (Fully visible, sticky, accessible, and responsive) */}
+        <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#000000]/80 backdrop-blur-xl transition-colors duration-200">
+          <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6 sm:px-8 lg:px-12">
+            {/* Brand Logo */}
+            <Link
+              href="/"
+              className="group flex items-center gap-3 font-semibold tracking-tight text-white focus-visible:outline-none"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 font-mono text-xs font-bold text-white shadow-[0_0_12px_rgba(255,255,255,0.15)] transition duration-300 group-hover:border-white/50 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]">
+                AE
+              </span>
+              <span className="text-base font-semibold tracking-tight text-white">
+                Auto Escrow
+              </span>
+            </Link>
 
-        <PageTransition effect="fade" duration={0.3} className="relative z-10 flex min-w-0 flex-1 flex-col">
-          {/* TOP NAVIGATION */}
-          <header className="relative mx-auto w-full max-w-7xl px-6 pt-6 sm:px-8 lg:px-12 lg:pt-8">
-            <nav className="flex items-center justify-between gap-6" aria-label="Main Navigation">
-              {/* Brand Logo */}
-              <Link href="/" className="group flex items-center gap-3 font-semibold tracking-tight text-[#F5F7FF]">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#00C8FF]/40 bg-gradient-to-br from-[#00C8FF]/20 to-[#536DFF]/30 font-mono text-xs font-bold text-[#00C8FF] shadow-[0_0_16px_rgba(0,200,255,0.25)] transition duration-300 group-hover:border-[#00C8FF]/80 group-hover:shadow-[0_0_24px_rgba(0,200,255,0.45)]">
-                  AE
-                </span>
-                <span className="text-base font-semibold tracking-tight text-[#F5F7FF]">Auto Escrow</span>
+            {/* Desktop Navigation Links */}
+            <nav className="hidden items-center gap-8 text-sm font-medium text-[#BDBDBD] md:flex" aria-label="Desktop Navigation">
+              <Link
+                href="/marketplace"
+                className="transition-colors duration-200 hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+              >
+                Agent marketplace
+              </Link>
+              <Link
+                href="/demo"
+                className="transition-colors duration-200 hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+              >
+                Guided demo
+              </Link>
+              <Link
+                href="/settings"
+                className="transition-colors duration-200 hover:text-white hover:drop-shadow-[0_0_8px_rgba(255,255,255,0.5)]"
+              >
+                Settings
+              </Link>
+            </nav>
+
+            {/* Actions: Theme Toggler & Prototype CTA */}
+            <div className="flex items-center gap-3">
+              <ThemeToggler variant="default" size="default" system={false} />
+
+              <Link href="/demo" className="hidden sm:inline-flex">
+                <LiquidButton
+                  delay={0.25}
+                  fillHeight={3}
+                  tapScale={0.97}
+                  className="px-4 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-sm"
+                >
+                  Try the prototype <ArrowRight size={15} />
+                </LiquidButton>
               </Link>
 
-              {/* Navigation Links */}
-              <div className="hidden items-center gap-8 text-sm font-medium text-[#A0A9BC] md:flex">
+              {/* Mobile Menu Hamburger */}
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen((open) => !open)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10 md:hidden"
+                aria-label={mobileMenuOpen ? "Close menu" : "Open menu"}
+                aria-expanded={mobileMenuOpen}
+              >
+                {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
+              </button>
+            </div>
+          </div>
+
+          {/* Mobile Navigation Dropdown */}
+          {mobileMenuOpen && (
+            <div className="border-t border-white/10 bg-[#000000]/95 px-6 py-5 backdrop-blur-2xl md:hidden">
+              <nav className="flex flex-col gap-4 text-sm font-medium text-[#CCCCCC]">
                 <Link
                   href="/marketplace"
-                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-1.5 transition hover:text-white"
                 >
                   Agent marketplace
                 </Link>
                 <Link
                   href="/demo"
-                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-1.5 transition hover:text-white"
                 >
                   Guided demo
                 </Link>
                 <Link
                   href="/settings"
-                  className="transition-colors duration-200 hover:text-[#00C8FF] hover:drop-shadow-[0_0_8px_rgba(0,200,255,0.5)]"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="py-1.5 transition hover:text-white"
                 >
                   Settings
                 </Link>
-              </div>
+                <div className="pt-2">
+                  <Link href="/demo" onClick={() => setMobileMenuOpen(false)}>
+                    <LiquidButton
+                      delay={0.25}
+                      fillHeight={3}
+                      tapScale={0.97}
+                      className="w-full py-2.5 text-xs font-semibold"
+                    >
+                      Try the prototype <ArrowRight size={15} />
+                    </LiquidButton>
+                  </Link>
+                </div>
+              </nav>
+            </div>
+          )}
+        </header>
 
-              {/* Theme Toggler & Prototype CTA */}
-              <div className="flex items-center gap-3">
-                <ThemeToggler variant="default" size="default" system={false} />
+        {/* 1. CINEMATIC HERO SECTION (Directly over 3D Spherical Particle Formation) */}
+        <section className="relative flex min-h-[calc(100vh-4rem)] w-full flex-col justify-center overflow-hidden px-6 py-20 sm:px-8 lg:px-12 lg:py-28">
+          {/* Section 1 Particle Formation: Large Interconnected 3D Spherical Network */}
+          <InteractiveSectionParticles formation="sphere" particleCount={95} />
 
-                <Link href="/demo">
-                  <LiquidButton
-                    delay={0.25}
-                    fillHeight={3}
-                    tapScale={0.97}
-                    className="px-4 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-sm"
-                  >
-                    Try the prototype <ArrowRight size={15} />
-                  </LiquidButton>
-                </Link>
-              </div>
-            </nav>
-          </header>
-
-          {/* CINEMATIC HERO SECTION (No card, no container, no robot, text directly over animated background) */}
-          <section className="relative mx-auto flex w-full max-w-7xl flex-1 flex-col justify-center px-6 pb-24 pt-16 sm:px-8 sm:pt-24 lg:px-12 lg:pb-32 lg:pt-28">
+          <div className="relative z-10 mx-auto w-full max-w-7xl">
             <div className="max-w-3xl">
-              {/* Main Headline */}
-              <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.035em] text-[#F5F7FF] sm:text-6xl lg:text-7xl">
+              {/* Product Headline with Subtle Silver/White Gradient Emphasis */}
+              <h1 className="text-5xl font-semibold leading-[1.08] tracking-[-0.035em] text-white sm:text-6xl lg:text-7xl">
                 Make AI-agent work{" "}
-                <span className="inline-block bg-gradient-to-r from-[#00C8FF] via-[#536DFF] to-[#8855FF] bg-clip-text text-transparent drop-shadow-[0_0_40px_rgba(0,200,255,0.45)]">
+                <span className="inline-block bg-gradient-to-r from-white via-[#CCCCCC] to-[#888888] bg-clip-text text-transparent drop-shadow-[0_0_35px_rgba(255,255,255,0.3)]">
                   easier to trust.
                 </span>
               </h1>
 
-              {/* Descriptive Paragraph */}
+              {/* Product Descriptive Paragraph */}
               <p className="mt-8 max-w-2xl text-lg font-normal leading-8 text-[#A0A9BC] md:text-xl">
                 Auto Escrow helps a requester define the job, compare explainable matches, agree on terms, record simulated escrow, verify the result, and review what happened.
               </p>
 
-              {/* Two Carefully Positioned CTAs */}
+              {/* Two Carefully Positioned Monochrome Liquid Buttons */}
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
                 <Link href="/demo">
                   <LiquidButton
                     delay={0.3}
                     fillHeight={3}
                     tapScale={0.97}
-                    className="px-7 py-3.5 text-sm font-semibold shadow-[0_0_25px_rgba(0,200,255,0.35)]"
+                    className="px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                   >
                     Try the guided demo <ArrowRight size={17} />
                   </LiquidButton>
                 </Link>
 
-                <Link
-                  href="/marketplace"
-                  className={`inline-flex items-center justify-center gap-2 rounded-full px-7 py-3.5 text-sm font-medium ${styles.secondaryCta}`}
-                >
-                  <Search size={17} className="text-[#00C8FF]" /> Browse agents
+                <Link href="/marketplace">
+                  <LiquidButton
+                    variant="outline"
+                    delay={0.3}
+                    fillHeight={3}
+                    tapScale={0.97}
+                    className="px-7 py-3.5 text-sm font-medium"
+                  >
+                    <Search size={16} className="text-[#CCCCCC]" /> Browse agents
+                  </LiquidButton>
                 </Link>
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* PROOF POINTS STRIP */}
-          <section className="relative w-full border-y border-white/[0.08] bg-[#090D18]/50 py-7 backdrop-blur-xl">
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
-              <p className="shrink-0 font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
-                What this prototype proves
-              </p>
-              <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {proofPoints.map((item) => (
-                  <div key={item} className="flex items-start gap-2.5 text-sm font-medium leading-6 text-[#F5F7FF]">
-                    <CheckCircle2 size={17} className="mt-1 shrink-0 text-[#00C8FF] drop-shadow-[0_0_8px_rgba(0,200,255,0.6)]" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </section>
+        {/* 2. PROOF POINTS / ABOUT SECTION (Directly over Geometric Crystalline Particle Network) */}
+        <section className="relative w-full border-y border-white/10 bg-[#050505]/60 py-8 backdrop-blur-xl">
+          {/* Section 2 Particle Formation: Abstract Crystalline Geometric Structure */}
+          <InteractiveSectionParticles formation="geometry" particleCount={65} />
 
-          {/* THE PROBLEM & WORKFLOW SECTION */}
-          <section className="mx-auto w-full max-w-7xl px-6 py-20 sm:px-8 lg:px-12 lg:py-28">
-            <div className={`rounded-3xl p-8 md:p-12 ${styles.sectionSurface}`}>
-              <div className="grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
-                <div>
-                  <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
-                    The problem
-                  </p>
-                  <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-[#F5F7FF] sm:text-4xl md:text-5xl">
-                    Trust should be a workflow, not a promise.
-                  </h2>
+          <div className="relative z-10 mx-auto flex w-full max-w-7xl flex-col gap-6 px-6 sm:px-8 lg:flex-row lg:items-center lg:justify-between lg:px-12">
+            <p className="shrink-0 font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#CCCCCC]">
+              What this prototype proves
+            </p>
+            <div className="grid flex-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {proofPoints.map((item) => (
+                <div key={item} className="flex items-start gap-2.5 text-sm font-medium leading-6 text-white">
+                  <CheckCircle2 size={17} className="mt-1 shrink-0 text-white drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]" />
+                  <span>{item}</span>
                 </div>
-                <p className="max-w-2xl text-lg font-normal leading-8 text-[#A0A9BC]">
-                  When AI agents coordinate work, people still need a clear brief, an understandable match, agreed terms, and a way to see why money can—or cannot—be released. Auto Escrow makes those transitions visible in one place.
-                </p>
-              </div>
-
-              <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
-                {workflow.map((item) => (
-                  <div
-                    key={item.number}
-                    className={`rounded-2xl p-6 ${styles.cyberCard}`}
-                  >
-                    <span className="font-mono text-xs font-bold tracking-[0.2em] text-[#00C8FF]">
-                      {item.number}
-                    </span>
-                    <h3 className="mt-8 text-xl font-semibold text-[#F5F7FF]">
-                      {item.title}
-                    </h3>
-                    <p className="mt-3 text-sm font-normal leading-6 text-[#A0A9BC]">
-                      {item.text}
-                    </p>
-                  </div>
-                ))}
-              </div>
+              ))}
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* BUILT FOR CLARITY SECTION */}
-          <section className="mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-12 lg:py-8">
-            <div className={`grid gap-10 rounded-3xl p-8 md:p-12 lg:grid-cols-[.9fr_1.1fr] lg:items-center ${styles.sectionSurface}`}>
+        {/* 3. THE PROBLEM & WORKFLOW SECTION (Directly over Flowing Pathway Particles) */}
+        <section className="relative mx-auto w-full max-w-7xl px-6 py-20 sm:px-8 lg:px-12 lg:py-28">
+          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+            {/* Section 3 Particle Formation: Flowing Conduit Pathways */}
+            <InteractiveSectionParticles formation="pathways" particleCount={85} />
+
+            <div className="relative z-10 grid gap-8 lg:grid-cols-[.75fr_1.25fr] lg:items-end">
               <div>
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#00C8FF]">
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#888888]">
+                  The problem
+                </p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl md:text-5xl">
+                  Trust should be a workflow, not a promise.
+                </h2>
+              </div>
+              <p className="max-w-2xl text-lg font-normal leading-8 text-[#A0A9BC]">
+                When AI agents coordinate work, people still need a clear brief, an understandable match, agreed terms, and a way to see why money can—or cannot—be released. Auto Escrow makes those transitions visible in one place.
+              </p>
+            </div>
+
+            <div className="relative z-10 mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+              {workflow.map((item) => (
+                <div
+                  key={item.number}
+                  className={`rounded-2xl p-6 ${styles.monochromeCard}`}
+                >
+                  <span className="font-mono text-xs font-bold tracking-[0.2em] text-white">
+                    {item.number}
+                  </span>
+                  <h3 className="mt-8 text-xl font-semibold text-white">
+                    {item.title}
+                  </h3>
+                  <p className="mt-3 text-sm font-normal leading-6 text-[#A0A9BC]">
+                    {item.text}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* 4. BUILT FOR CLARITY SECTION (Directly over 4-Cluster Constellation Particles) */}
+        <section className="relative mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-12 lg:py-8">
+          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+            {/* Section 4 Particle Formation: Constellation Hubs */}
+            <InteractiveSectionParticles formation="constellation" particleCount={75} />
+
+            <div className="relative z-10 grid gap-10 lg:grid-cols-[.9fr_1.1fr] lg:items-center">
+              <div>
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-[#888888]">
                   Built for clarity
                 </p>
-                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-[#F5F7FF] sm:text-4xl">
+                <h2 className="mt-4 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">
                   A calmer surface for consequential steps.
                 </h2>
                 <p className="mt-6 max-w-2xl text-base font-normal leading-7 text-[#A0A9BC]">
@@ -229,12 +306,12 @@ export default function Home() {
                 {featureCards.map(([Icon, title, text]) => (
                   <div
                     key={title}
-                    className={`rounded-2xl p-5 ${styles.cyberCard}`}
+                    className={`rounded-2xl p-5 ${styles.monochromeCard}`}
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-[#00C8FF]/30 bg-[#00C8FF]/10 text-[#00C8FF] shadow-[0_0_14px_rgba(0,200,255,0.2)]">
-                      <Icon size={20} />
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/20 bg-white/5 text-white shadow-[0_0_12px_rgba(255,255,255,0.1)]">
+                      <Icon size={19} />
                     </div>
-                    <h3 className="mt-5 text-base font-semibold text-[#F5F7FF]">
+                    <h3 className="mt-5 text-base font-semibold text-white">
                       {title}
                     </h3>
                     <p className="mt-2 text-sm font-normal leading-6 text-[#A0A9BC]">
@@ -244,16 +321,21 @@ export default function Home() {
                 ))}
               </div>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* PROTOTYPE NOTE SECTION */}
-          <section className="mx-auto w-full max-w-7xl px-6 py-16 sm:px-8 lg:px-12 lg:py-20">
-            <div className={`flex flex-col justify-between gap-8 rounded-3xl p-8 md:flex-row md:items-center md:p-12 ${styles.sectionSurface}`}>
+        {/* 5. PROTOTYPE NOTE / FINAL CTA SECTION (Directly over Orbital Particle Rings) */}
+        <section className="relative mx-auto w-full max-w-7xl px-6 py-16 sm:px-8 lg:px-12 lg:py-20">
+          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+            {/* Section 5 Particle Formation: Orbital Resonance Rings */}
+            <InteractiveSectionParticles formation="orbital" particleCount={65} />
+
+            <div className="relative z-10 flex flex-col justify-between gap-8 md:flex-row md:items-center">
               <div>
-                <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#00C8FF]">
+                <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#888888]">
                   Prototype note
                 </p>
-                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-[#F5F7FF] md:text-3xl">
+                <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white md:text-3xl">
                   Synthetic data. Simulated escrow. Real workflow rules.
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-[#A0A9BC]">
@@ -265,32 +347,32 @@ export default function Home() {
                   delay={0.25}
                   fillHeight={3}
                   tapScale={0.97}
-                  className="shrink-0 px-6 py-3.5 text-sm font-semibold"
+                  className="shrink-0 px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                 >
                   Start with a sample task <ArrowRight size={16} />
                 </LiquidButton>
               </Link>
             </div>
-          </section>
+          </div>
+        </section>
 
-          {/* FOOTER */}
-          <footer className="border-t border-white/[0.08] bg-[#05060A]/80 backdrop-blur-xl">
-            <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-[#A0A9BC] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-              <span>Auto Escrow · synthetic hackathon prototype</span>
-              <div className="flex gap-6">
-                <Link href="/demo" className="transition-colors hover:text-[#00C8FF]">
-                  Guided demo
-                </Link>
-                <Link href="/marketplace" className="transition-colors hover:text-[#00C8FF]">
-                  Marketplace
-                </Link>
-                <Link href="/settings" className="transition-colors hover:text-[#00C8FF]">
-                  Settings
-                </Link>
-              </div>
+        {/* FOOTER */}
+        <footer className="border-t border-white/10 bg-[#000000]/90 backdrop-blur-xl">
+          <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-[#888888] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
+            <span>Auto Escrow · synthetic hackathon prototype</span>
+            <div className="flex gap-6">
+              <Link href="/demo" className="transition-colors hover:text-white">
+                Guided demo
+              </Link>
+              <Link href="/marketplace" className="transition-colors hover:text-white">
+                Marketplace
+              </Link>
+              <Link href="/settings" className="transition-colors hover:text-white">
+                Settings
+              </Link>
             </div>
-          </footer>
-        </PageTransition>
+          </div>
+        </footer>
       </main>
     </CursorProvider>
   );

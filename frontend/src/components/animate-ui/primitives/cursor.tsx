@@ -36,7 +36,7 @@ export function CursorProvider({ global = false, children }: CursorProviderProps
   const mouseX = useMotionValue(-100);
   const mouseY = useMotionValue(-100);
 
-  const springConfig = { damping: 25, stiffness: 300, mass: 0.5 };
+  const springConfig = { damping: 28, stiffness: 350, mass: 0.4 };
   const springX = useSpring(mouseX, springConfig);
   const springY = useSpring(mouseY, springConfig);
 
@@ -59,7 +59,6 @@ export function CursorProvider({ global = false, children }: CursorProviderProps
       mouseY.set(e.clientY);
       if (!isVisible) setIsVisible(true);
 
-      // Check if hovering over an interactive element
       const target = e.target as HTMLElement | null;
       if (target) {
         const interactive =
@@ -132,14 +131,14 @@ export function Cursor({ children, className = "" }: CursorProps) {
       {children ?? (
         <motion.div
           animate={{
-            scale: isPointer ? 1.6 : 1,
+            scale: isPointer ? 1.5 : 1,
             opacity: isVisible ? 1 : 0,
           }}
           transition={{ duration: 0.15 }}
           className="relative flex items-center justify-center"
         >
-          {/* Subtle electric cyan reticle dot */}
-          <div className="h-2 w-2 rounded-full bg-[#00C8FF] shadow-[0_0_12px_#00C8FF]" />
+          {/* Subtle monochrome reticle dot */}
+          <div className="h-2 w-2 rounded-full bg-[#FFFFFF] shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
         </motion.div>
       )}
     </motion.div>
@@ -179,11 +178,11 @@ export function CursorFollow({
       {children ?? (
         <motion.div
           animate={{
-            scale: isPointer ? 1.8 : 1,
-            opacity: isPointer ? 0.8 : 0.45,
+            scale: isPointer ? 1.6 : 1,
+            opacity: isPointer ? 0.7 : 0.35,
           }}
           transition={{ duration: 0.2 }}
-          className="h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border border-[#00C8FF]/40 bg-[#00C8FF]/10 blur-[1px] shadow-[0_0_15px_rgba(0,200,255,0.25)]"
+          className="h-7 w-7 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/40 bg-white/[0.04] blur-[0.5px] shadow-[0_0_15px_rgba(255,255,255,0.15)]"
         />
       )}
     </motion.div>
