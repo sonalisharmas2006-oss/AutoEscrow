@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { autoEscrowApi } from "@/lib/api";
+import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
 
 export function SessionNotice() {
   const [required, setRequired] = useState(false);
@@ -25,6 +26,6 @@ export function SessionNotice() {
       try { await autoEscrowApi.startDemoSession(code); localStorage.removeItem("autoescrow-guided-demo-job"); localStorage.removeItem("autoescrow-guided-demo-agent"); window.location.assign("/demo/"); }
       catch (caught) { setError(caught instanceof Error ? caught.message : "Session unavailable"); }
       finally { setBusy(false); }
-    }}><h2 id="session-title">Start a fresh demo session</h2><p>The session may have expired, or this deployment requires the presenter’s access code. Starting again does not restore expired work.</p><label>Demo access code (leave blank for open demos)<input autoFocus type="password" autoComplete="off" value={code} onChange={event => setCode(event.target.value)} /></label>{error && <p role="alert">{error}</p>}<button disabled={busy} type="submit">{busy ? "Connecting…" : "Start session"}</button><button disabled={busy} type="button" onClick={() => setRequired(false)}>Cancel</button></form></dialog>}
+    }}><h2 id="session-title">Start a fresh demo session</h2><p>The session may have expired, or this deployment requires the presenter’s access code. Starting again does not restore expired work.</p><label>Demo access code (leave blank for open demos)<input autoFocus type="password" autoComplete="off" value={code} onChange={event => setCode(event.target.value)} /></label>{error && <p role="alert">{error}</p>}<LiquidButton disabled={busy} type="submit" className="mt-2 px-4 py-2 text-sm">{busy ? "Connecting…" : "Start session"}</LiquidButton><LiquidButton disabled={busy} type="button" onClick={() => setRequired(false)} className="mt-2 px-4 py-2 text-sm">Cancel</LiquidButton></form></dialog>}
   </>;
 }

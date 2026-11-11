@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Cookie, X } from "lucide-react";
 import Link from "next/link";
+import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
 
 export function GlobalCookieBanner() {
   const [showBanner, setShowBanner] = useState(false);
@@ -24,12 +25,14 @@ export function GlobalCookieBanner() {
 
   return (
     <div className="fixed bottom-6 right-6 z-50 w-[calc(100%-3rem)] rounded-2xl border border-black/10 bg-white/90 p-6 shadow-2xl backdrop-blur-2xl animate-in slide-in-from-bottom-10 fade-in duration-500 dark:border-white/15 dark:bg-[#0A0A0A]/90 md:w-[400px]">
-      <button 
+      <LiquidButton
+        type="button"
+        aria-label="Close cookie preferences"
         onClick={() => setShowBanner(false)}
-        className="absolute right-4 top-4 text-[#888888] transition-colors hover:text-black dark:hover:text-white"
+        className="absolute right-4 top-4 h-8 w-8 p-0 text-[#888888] transition-colors hover:text-white"
       >
         <X size={16} />
-      </button>
+      </LiquidButton>
       <div className="flex items-center gap-3 mb-4">
         <div className="rounded-full border border-black/10 bg-black/5 p-2 text-black dark:border-white/20 dark:bg-white/10 dark:text-white">
           <Cookie size={18} />
@@ -40,12 +43,13 @@ export function GlobalCookieBanner() {
         We use strictly necessary cookies to keep your sessions secure. We also use optional analytics cookies to measure protocol performance. 
       </p>
       <div className="flex items-center gap-3">
-        <button 
+        <LiquidButton
+          type="button"
           onClick={handleAccept}
-          className="flex-1 rounded-xl bg-black py-2.5 text-xs font-bold text-white shadow-lg transition-colors hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/90"
+          className="flex-1 rounded-xl py-2.5 text-xs font-bold shadow-lg transition-colors"
         >
           Accept All
-        </button>
+        </LiquidButton>
         <Link 
           href="/settings"
           onClick={() => setShowBanner(false)}

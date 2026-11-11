@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import Workspace from "./layout/Workspace";
+import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
 import {
   ApiAgreement,
   ApiDispute,
@@ -98,13 +99,13 @@ export default function WorkflowRegistry({ view }: { view: View }) {
     <Workspace title={titles[view][0]} intro={titles[view][1]}>
       <div className="toolbar">
         <label>Filter your jobs<input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Title, job id, or status" /></label>
-        <button onClick={() => void load()} disabled={loading}>Refresh records</button>
+        <LiquidButton type="button" onClick={() => void load()} disabled={loading} className="px-4 py-2 text-sm">Refresh records</LiquidButton>
         <Link href="/demo/?new=1">Create another job →</Link>
       </div>
-      {error ? <div className="error-panel" role="alert"><h2>Records could not be refreshed</h2><p>{error}</p><button onClick={() => void load()}>Retry</button></div> : loading ? <p role="status" className="empty-panel">Loading persisted records…</p> : <>
+      {error ? <div className="error-panel" role="alert"><h2>Records could not be refreshed</h2><p>{error}</p><LiquidButton type="button" onClick={() => void load()} className="px-4 py-2 text-sm">Retry</LiquidButton></div> : loading ? <p role="status" className="empty-panel">Loading persisted records…</p> : <>
         {view === "dashboard" && <div className="workspace-stats"><article><span>Your jobs</span><strong>{rows.length}</strong></article><article><span>Verified jobs</span><strong>{rows.filter((row) => row.verification?.overall_result === "passed").length}</strong></article><article><span>Unresolved disputes</span><strong>{rows.reduce((sum, row) => sum + row.disputes.filter((item) => ["open", "under_review"].includes(item.status)).length, 0)}</strong></article></div>}
         {rows.some((row) => row.detailIssues.length > 0) && <div className="warning-panel" role="status">Some optional workflow details could not be loaded. The job list remains live; use Refresh records to retry.</div>}
-        {visible.length === 0 ? <div className="empty-panel"><h2>{filter ? "No matching jobs" : "Your sandbox is ready for its first job"}</h2><p>{filter ? "Clear or change the filter." : "Use the guided workflow to create a synthetic task and its persisted record."}</p><Link href="/demo/">Try the guided demo →</Link></div> : <div className="registry-list">{visible.map((row) => <article key={row.job.id} className="registry-row"><div><p className="eyebrow">{row.job.public_id.slice(0, 20)}…</p><h2><button onClick={() => { setSelected(row.job.id); window.history.replaceState(null, "", `?job=${row.job.id}`); }}>{row.job.title}</button></h2><p>{row.job.status} · {formatMoney(row.job.budget, row.job.currency)} · due {new Date(row.job.deadline).toLocaleString()}</p></div><div className="row-state">{view === "escrow" ? row.escrow?.status || "Not funded" : view === "agreements" ? row.agreement?.status || "Not proposed" : view === "verification" ? row.verification?.overall_result || "Not verified" : view === "disputes" ? row.disputes[0]?.status || "No dispute" : row.execution?.execution_status || "Not started"}<Link href={`/demo/?job=${row.job.id}`}>Open workflow →</Link></div></article>)}</div>}
+        {visible.length === 0 ? <div className="empty-panel"><h2>{filter ? "No matching jobs" : "Your sandbox is ready for its first job"}</h2><p>{filter ? "Clear or change the filter." : "Use the guided workflow to create a synthetic task and its persisted record."}</p><Link href="/demo/">Try the guided demo →</Link></div> : <div className="registry-list">{visible.map((row) => <article key={row.job.id} className="registry-row"><div><p className="eyebrow">{row.job.public_id.slice(0, 20)}…</p><h2><LiquidButton type="button" onClick={() => { setSelected(row.job.id); window.history.replaceState(null, "", `?job=${row.job.id}`); }} className="text-left px-1 py-1" contentClassName="justify-start">{row.job.title}</LiquidButton></h2><p>{row.job.status} · {formatMoney(row.job.budget, row.job.currency)} · due {new Date(row.job.deadline).toLocaleString()}</p></div><div className="row-state">{view === "escrow" ? row.escrow?.status || "Not funded" : view === "agreements" ? row.agreement?.status || "Not proposed" : view === "verification" ? row.verification?.overall_result || "Not verified" : view === "disputes" ? row.disputes[0]?.status || "No dispute" : row.execution?.execution_status || "Not started"}<Link href={`/demo/?job=${row.job.id}`}>Open workflow →</Link></div></article>)}</div>}
         {selected && !detail && <p className="error-panel">That job is not available in the current view.</p>}
         {detail && <JobRecord row={detail} view={view} />}
       </>}

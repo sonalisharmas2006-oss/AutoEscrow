@@ -14,13 +14,8 @@ import {
   X,
 } from "lucide-react";
 import { InteractiveSectionParticles } from "@/components/particles/InteractiveSectionParticles";
-import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ThemeToggler } from "@/components/animate-ui/buttons/theme-toggler";
-import {
-  Cursor,
-  CursorFollow,
-  CursorProvider,
-} from "@/components/animate-ui/primitives/cursor";
+import { LiquidButton, LiquidLink } from "@/components/animate-ui/buttons/liquid";
+import BrandLogo from "@/components/BrandLogo";
 import styles from "./homepage.module.css";
 
 const workflow = [
@@ -48,11 +43,7 @@ export default function Home() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
-    <CursorProvider global>
-      <Cursor />
-      <CursorFollow />
-
-      <main className={`relative flex min-h-screen w-full flex-col overflow-x-hidden ${styles.homepageRoot}`}>
+      <main className={`homepage-root relative flex min-h-screen w-full flex-col overflow-x-hidden ${styles.homepageRoot}`}>
         {/* PERMANENT TOP NAVIGATION (Fully visible, sticky, accessible, and responsive) */}
         <header className="sticky top-0 z-50 w-full border-b border-white/10 bg-[#000000]/80 backdrop-blur-xl transition-colors duration-200">
           <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6 sm:px-8 lg:px-12">
@@ -61,9 +52,7 @@ export default function Home() {
               href="/"
               className="group flex items-center gap-3 font-semibold tracking-tight text-white focus-visible:outline-none"
             >
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/20 bg-white/10 font-mono text-xs font-bold text-white shadow-[0_0_12px_rgba(255,255,255,0.15)] transition duration-300 group-hover:border-white/50 group-hover:shadow-[0_0_20px_rgba(255,255,255,0.3)]">
-                AE
-              </span>
+              <BrandLogo className="h-9 w-6" />
               <span className="text-base font-semibold tracking-tight text-white">
                 Auto Escrow
               </span>
@@ -91,23 +80,19 @@ export default function Home() {
               </Link>
             </nav>
 
-            {/* Actions: Theme Toggler & Prototype CTA */}
+            {/* Prototype CTA */}
             <div className="flex items-center gap-3">
-              <ThemeToggler variant="default" size="default" system={false} />
-
-              <Link href="/demo" className="hidden sm:inline-flex">
-                <LiquidButton
-                  delay={0.25}
-                  fillHeight={3}
-                  tapScale={0.97}
-                  className="px-4 py-2 text-xs font-semibold sm:px-5 sm:py-2.5 sm:text-sm"
-                >
-                  Try the prototype <ArrowRight size={15} />
-                </LiquidButton>
-              </Link>
+              <LiquidLink
+                href="/demo"
+                delay={0.25}
+                fillHeight={3}
+                className="hidden px-4 py-2 text-xs font-semibold sm:inline-flex sm:px-5 sm:py-2.5 sm:text-sm"
+              >
+                Try the prototype <ArrowRight size={15} />
+              </LiquidLink>
 
               {/* Mobile Menu Hamburger */}
-              <button
+              <LiquidButton
                 type="button"
                 onClick={() => setMobileMenuOpen((open) => !open)}
                 className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/15 bg-white/5 text-white transition hover:bg-white/10 md:hidden"
@@ -115,7 +100,7 @@ export default function Home() {
                 aria-expanded={mobileMenuOpen}
               >
                 {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
-              </button>
+              </LiquidButton>
             </div>
           </div>
 
@@ -145,16 +130,15 @@ export default function Home() {
                   Settings
                 </Link>
                 <div className="pt-2">
-                  <Link href="/demo" onClick={() => setMobileMenuOpen(false)}>
-                    <LiquidButton
+                  <LiquidLink
+                      href="/demo"
+                      onClick={() => setMobileMenuOpen(false)}
                       delay={0.25}
                       fillHeight={3}
-                      tapScale={0.97}
                       className="w-full py-2.5 text-xs font-semibold"
                     >
                       Try the prototype <ArrowRight size={15} />
-                    </LiquidButton>
-                  </Link>
+                    </LiquidLink>
                 </div>
               </nav>
             </div>
@@ -183,28 +167,24 @@ export default function Home() {
 
               {/* Two Carefully Positioned Monochrome Liquid Buttons */}
               <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-center">
-                <Link href="/demo">
-                  <LiquidButton
-                    delay={0.3}
-                    fillHeight={3}
-                    tapScale={0.97}
-                    className="px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
-                  >
-                    Try the guided demo <ArrowRight size={17} />
-                  </LiquidButton>
-                </Link>
+                  <LiquidLink
+                    href="/demo"
+                      delay={0.3}
+                      fillHeight={3}
+                      className="px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                    >
+                      Try the guided demo <ArrowRight size={17} />
+                  </LiquidLink>
 
-                <Link href="/marketplace">
-                  <LiquidButton
+                  <LiquidLink
+                    href="/marketplace"
                     variant="outline"
                     delay={0.3}
                     fillHeight={3}
-                    tapScale={0.97}
                     className="px-7 py-3.5 text-sm font-medium"
                   >
                     <Search size={16} className="text-[#CCCCCC]" /> Browse agents
-                  </LiquidButton>
-                </Link>
+                  </LiquidLink>
               </div>
             </div>
           </div>
@@ -232,7 +212,7 @@ export default function Home() {
 
         {/* 3. THE PROBLEM & WORKFLOW SECTION (Directly over Flowing Pathway Particles) */}
         <section className="relative mx-auto w-full max-w-7xl px-6 py-20 sm:px-8 lg:px-12 lg:py-28">
-          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+          <div className="relative overflow-hidden p-8 md:p-12">
             {/* Section 3 Particle Formation: Flowing Conduit Pathways */}
             <InteractiveSectionParticles formation="pathways" particleCount={85} />
 
@@ -273,7 +253,7 @@ export default function Home() {
 
         {/* 4. BUILT FOR CLARITY SECTION (Directly over 4-Cluster Constellation Particles) */}
         <section className="relative mx-auto w-full max-w-7xl px-6 py-6 sm:px-8 lg:px-12 lg:py-8">
-          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+          <div className="relative overflow-hidden p-8 md:p-12">
             {/* Section 4 Particle Formation: Constellation Hubs */}
             <InteractiveSectionParticles formation="constellation" particleCount={75} />
 
@@ -289,16 +269,14 @@ export default function Home() {
                   The internal workspace uses the current FastAPI workflow and keeps the details available when you need them—without asking a first-time visitor to understand APIs, ledgers, or state machines.
                 </p>
                 <div className="mt-8">
-                  <Link href="/demo">
-                    <LiquidButton
+                  <LiquidLink
+                    href="/demo"
                       delay={0.25}
                       fillHeight={3}
-                      tapScale={0.97}
                       className="px-6 py-3 text-sm font-semibold"
                     >
                       Open the guided workspace <ArrowRight size={16} />
-                    </LiquidButton>
-                  </Link>
+                  </LiquidLink>
                 </div>
               </div>
 
@@ -326,9 +304,14 @@ export default function Home() {
 
         {/* 5. PROTOTYPE NOTE / FINAL CTA SECTION (Directly over Orbital Particle Rings) */}
         <section className="relative mx-auto w-full max-w-7xl px-6 py-16 sm:px-8 lg:px-12 lg:py-20">
-          <div className={`overflow-hidden rounded-3xl p-8 md:p-12 ${styles.glassPanel}`}>
+          <div className="relative overflow-hidden p-8 md:p-12">
             {/* Section 5 Particle Formation: Orbital Resonance Rings */}
-            <InteractiveSectionParticles formation="orbital" particleCount={65} />
+            <InteractiveSectionParticles
+              formation="orbital"
+              particleCount={65}
+              particleOpacity={0.1}
+              lineOpacity={0.1}
+            />
 
             <div className="relative z-10 flex flex-col justify-between gap-8 md:flex-row md:items-center">
               <div>
@@ -342,16 +325,14 @@ export default function Home() {
                   This is a hackathon MVP. It does not process payments, hold funds, run arbitrary code, provide production authentication, or make claims about real-world agent performance.
                 </p>
               </div>
-              <Link href="/demo">
-                <LiquidButton
+              <LiquidLink
+                href="/demo"
                   delay={0.25}
                   fillHeight={3}
-                  tapScale={0.97}
                   className="shrink-0 px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                 >
                   Start with a sample task <ArrowRight size={16} />
-                </LiquidButton>
-              </Link>
+              </LiquidLink>
             </div>
           </div>
         </section>
@@ -374,6 +355,5 @@ export default function Home() {
           </div>
         </footer>
       </main>
-    </CursorProvider>
   );
 }

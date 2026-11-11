@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
-import { useTheme } from "next-themes";
 
 export type ParticleFormation =
   | "sphere"
@@ -42,6 +41,9 @@ interface InteractiveSectionParticlesProps {
   particleCount?: number;
   densityScale?: number;
   interactive?: boolean;
+  globalInteraction?: boolean;
+  particleOpacity?: number;
+  lineOpacity?: number;
 }
 
 export function InteractiveSectionParticles({
@@ -49,11 +51,12 @@ export function InteractiveSectionParticles({
   className = "",
   particleCount = 90,
   interactive = true,
+  globalInteraction = false,
+  particleOpacity = 0.35,
+  lineOpacity = 0.35,
 }: InteractiveSectionParticlesProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const { resolvedTheme } = useTheme();
-
   useEffect(() => {
     const container = containerRef.current;
     const canvas = canvasRef.current;
@@ -104,7 +107,12 @@ export function InteractiveSectionParticles({
       pointerY = -9999;
     };
 
-    if (interactive) {
+    if (interactive && globalInteraction) {
+      window.addEventListener("mousemove", handleMouseMove, { passive: true });
+      window.addEventListener("mouseleave", handlePointerLeave, { passive: true });
+      window.addEventListener("touchmove", handleTouchMove, { passive: true });
+      window.addEventListener("touchend", handlePointerLeave, { passive: true });
+    } else if (interactive) {
       container.addEventListener("mousemove", handleMouseMove, { passive: true });
       container.addEventListener("mouseleave", handlePointerLeave, { passive: true });
       container.addEventListener("touchmove", handleTouchMove, { passive: true });
@@ -367,10 +375,9 @@ export function InteractiveSectionParticles({
 
       ctx.clearRect(0, 0, width, height);
 
-      const isDarkMode = resolvedTheme !== "light";
-      const particleWhite = isDarkMode ? "#FFFFFF" : "#111111";
-      const particleSilver = isDarkMode ? "#CCCCCC" : "#444444";
-      const lineBaseColor = isDarkMode ? "255, 255, 255" : "30, 30, 30";
+      const particleWhite = "#FFFFFF";
+      const particleSilver = "#E8E8E8";
+      const lineBaseColor = "255, 255, 255";
 
       // Periodically switch target formation if user interacted recently
       const now = performance.now();
@@ -464,7 +471,7 @@ export function InteractiveSectionParticles({
       }
 
       // Draw connecting lines only between adjacent grid cells
-      ctx.lineWidth = 0.65;
+      ctx.lineWidth = 1;
       for (let row = 0; row < gridRows; row++) {
         for (let col = 0; col < gridCols; col++) {
           const cellIndex = row * gridCols + col;
@@ -504,7 +511,9 @@ export function InteractiveSectionParticles({
                 if (dSq < maxConnectDistSq) {
                   const dist = Math.sqrt(dSq);
                   // Line alpha fades as distance increases and fades if mouse is near
-                  let lineAlpha = (1 - dist / maxConnectDist) * 0.16;
+                  let lineAlpha =
+                    (0.2 + (1 - dist / maxConnectDist) * 0.15) *
+                    (lineOpacity / 0.35);
 
                   if (isPointerActive) {
                     const midX = (pA.x + pB.x) / 2;
@@ -533,13 +542,16 @@ export function InteractiveSectionParticles({
       for (let i = 0; i < particles.length; i++) {
         const p = particles[i];
         ctx.fillStyle = p.colorType === 0 ? particleWhite : particleSilver;
-        ctx.globalAlpha = p.baseAlpha;
+        ctx.globalAlpha = particleOpacity;
+        ctx.shadowColor = `rgba(255, 255, 255, ${(particleOpacity * 0.3) / 0.35})`;
+        ctx.shadowBlur = 3;
 
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
         ctx.fill();
       }
       ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
 
       if (!prefersReducedMotion) {
         rafId = requestAnimationFrame(animate);
@@ -554,14 +566,19 @@ export function InteractiveSectionParticles({
       cancelAnimationFrame(rafId);
       observer.disconnect();
       window.removeEventListener("resize", handleResize);
-      if (interactive) {
+      if (interactive && globalInteraction) {
+        window.removeEventListener("mousemove", handleMouseMove);
+        window.removeEventListener("mouseleave", handlePointerLeave);
+        window.removeEventListener("touchmove", handleTouchMove);
+        window.removeEventListener("touchend", handlePointerLeave);
+      } else if (interactive) {
         container.removeEventListener("mousemove", handleMouseMove);
         container.removeEventListener("mouseleave", handlePointerLeave);
         container.removeEventListener("touchmove", handleTouchMove);
         container.removeEventListener("touchend", handlePointerLeave);
       }
     };
-  }, [formation, particleCount, interactive, resolvedTheme]);
+  }, [formation, particleCount, interactive, globalInteraction, particleOpacity, lineOpacity]);
 
   return (
     <div

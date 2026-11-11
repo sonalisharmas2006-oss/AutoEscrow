@@ -1,7 +1,7 @@
 /* Futuristic Monochrome AI Infrastructure styling for homepage */
 
 .homepageRoot {
-  background-color: #000000;
+  background-color: transparent;
   color: #FFFFFF;
   min-height: 100vh;
   position: relative;
@@ -21,12 +21,6 @@
   position: relative;
 }
 
-:global(:root:not(.dark)) .glassPanel {
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06);
-}
-
 .glassPanel::before {
   content: "";
   position: absolute;
@@ -40,7 +34,7 @@
 
 /* Individual Feature and Workflow Cards */
 .monochromeCard {
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -49,14 +43,8 @@
   position: relative;
 }
 
-:global(:root:not(.dark)) .monochromeCard {
-  background: rgba(0, 0, 0, 0.02);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.04);
-}
-
 .monochromeCard:hover {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.04);
   border-color: rgba(255, 255, 255, 0.25);
   box-shadow: 
     0 14px 35px rgba(0, 0, 0, 0.6),
