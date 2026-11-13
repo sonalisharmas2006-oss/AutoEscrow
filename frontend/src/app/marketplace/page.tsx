@@ -20,8 +20,9 @@ export default function MarketplacePage() {
   useEffect(() => {
     let active = true;
     setLoaded(false); setError(null);
-    autoEscrowApi.listAgents({}, { session: "optional" }).then((response) => {
-      if (active) setAgents(response.items.map(mapApiAgentToAgent));
+    autoEscrowApi.listAgents({}, { public: true }).then((response) => {
+      const items = Array.isArray(response?.items) ? response.items : [];
+      if (active) setAgents(items.map(mapApiAgentToAgent));
     }).catch((caught: unknown) => {
       if (active) setError(caught instanceof Error ? caught.message : "Unable to load registered agents.");
     }).finally(() => {
@@ -40,7 +41,11 @@ export default function MarketplacePage() {
   const handleHandshake = async (agent: Agent) => {
     setError(null);
     try {
-      router.push(`/demo/?agent=${agent.backendId}`);
+      if (agent.backendId) {
+        router.push(`/marketplace?agent=${agent.backendId}`);
+        return;
+      }
+      setError("This marketplace profile is not linked to a live V2 agent record yet.");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The backend could not create this handshake.");
     }
@@ -54,13 +59,13 @@ export default function MarketplacePage() {
           <div>
             <div className="inline-flex items-center gap-2 mb-4">
               <Hexagon size={14} className="text-[#CCCCCC]" />
-              <span className="text-xs font-mono tracking-[0.2em] text-[#CCCCCC] uppercase">Synthetic demo registry</span>
+              <span className="text-xs font-mono tracking-[0.2em] text-[#CCCCCC] uppercase">Live V2 marketplace</span>
             </div>
             <h1 className="mb-4 text-4xl font-bold tracking-tight text-white md:text-5xl">
               Agent Marketplace
             </h1>
             <p className="max-w-2xl text-sm font-light leading-relaxed text-[#A3A3A3] md:text-base">
-               Browse synthetic agent records exposed by the backend. Compare capabilities and availability before sending a synthetic job brief into matching.
+               Browse the authenticated marketplace exposed by the backend. Use your wallet to access the live V2 agent registry and verified profile data.
             </p>
           </div>
           
@@ -86,9 +91,9 @@ export default function MarketplacePage() {
 
          {error && <div className="error-panel" role="alert"><p>Registry unavailable: {error}</p><LiquidButton type="button" onClick={() => setRetry(retry + 1)} className="mt-3 px-4 py-2 text-sm">Retry registry</LiquidButton></div>}
 
-         {error ? null : !loaded ? <div className="rounded-3xl border border-dashed border-white/15 p-16 text-center text-sm text-[#888888]">Loading synthetic agent records…</div> : visibleAgents.length ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+         {error ? null : !loaded ? <div className="rounded-3xl border border-dashed border-white/15 p-16 text-center text-sm text-[#888888]">Loading live marketplace agents…</div> : visibleAgents.length ? <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
            {visibleAgents.map((agent) => <AgentCardShell key={agent.id} agent={agent} onHandshake={handleHandshake} disabled={isLoading} />)}
-         </div> : <div className="rounded-3xl border border-dashed border-white/15 p-16 text-center text-sm text-[#888888]">{search.trim() ? "No agents match this search." : "No available synthetic agents were returned by the backend."}</div>}
+         </div> : <div className="rounded-3xl border border-dashed border-white/15 p-16 text-center text-sm text-[#888888]">{search.trim() ? "No agents match this search." : "No live agents are currently available from the V2 registry."}</div>}
 
       </div>
     </main>
@@ -131,7 +136,7 @@ function AgentCardShell({
         </div>
 
          <div className="flex flex-wrap gap-2 mb-6 mt-auto">
-           {(agent?.capabilities.slice(0, 3) || []).map((capability) => (
+           {(Array.isArray(agent?.capabilities) ? agent.capabilities : []).slice(0, 3).map((capability) => (
               <span key={capability} className="rounded bg-white/[0.06] px-2 py-1 text-[10px] text-[#CCCCCC]">{capability}</span>
            ))}
            {!agent && <>
@@ -147,7 +152,7 @@ function AgentCardShell({
               <Activity size={14} />
               <span className="text-[11px] font-mono tracking-widest uppercase">Estimate</span>
             </div>
-              <span className="font-mono text-sm font-semibold text-[#CCCCCC]">{agent?.avgResponseTime || "Unknown"}</span>
+              <span className="font-mono text-sm font-semibold text-[#CCCCCC]">{agent?.avgResponseTime || "N/A"}</span>
           </div>
           
           <div className="flex justify-between items-center mb-6">
@@ -158,7 +163,7 @@ function AgentCardShell({
              <span className="font-mono text-sm font-semibold text-[#CCCCCC]">Set in agreement</span>
           </div>
 
-            <details className="mb-5 text-xs text-[#A3A3A3]"><summary className="cursor-pointer">Profile details</summary><p className="mt-2">Availability: {agent?.availability} · Status: {agent?.status}</p><p>Categories: {agent?.backendTaskCategories?.join(", ")}</p><p>Output formats: {agent?.supportedFormats?.join(", ")}</p><p className="mt-2">Capabilities are synthetic profile attributes, not measured real-world performance.</p></details>
+            <details className="mb-5 text-xs text-[#A3A3A3]"><summary className="cursor-pointer">Profile details</summary><p className="mt-2">Availability: {agent?.availability ?? "unknown"} · Status: {agent?.status ?? "unknown"}</p><p>Categories: {agent?.backendTaskCategories?.join(", ") || "Not provided"}</p><p>Output formats: {agent?.supportedFormats?.join(", ") || "Not provided"}</p><p className="mt-2">Live V2 registry metadata is surfaced here; capability claims require a real wallet-authenticated session.</p></details>
             <LiquidButton type="button" disabled={!agent || disabled || agent.availability !== "available" || agent.status !== "active"} onClick={() => agent && onHandshake(agent)} className="w-full rounded-xl py-3.5 text-xs font-bold shadow-md">
               {agent?.availability === "available" ? "Define a job with this agent" : "Not currently available"}
             </LiquidButton>

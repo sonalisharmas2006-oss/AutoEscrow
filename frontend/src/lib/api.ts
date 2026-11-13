@@ -584,6 +584,12 @@ export async function linkWallet(address: string, message: string, signature: st
   });
 }
 
+const normalizeListResponse = <T>(value: ApiList<T> | T[] | null | undefined): T[] => {
+  if (Array.isArray(value)) return value;
+  if (!value || typeof value !== "object") return [];
+  return Array.isArray((value as ApiList<T>).items) ? (value as ApiList<T>).items : [];
+};
+
 export const autoEscrowApi = {
   startDemoSession(_accessCode = "") {
     return Promise.reject(new AutoEscrowApiError(410, "Demo session authentication has been removed. Use the V2 wallet SIWE flow instead."));
@@ -632,7 +638,10 @@ export const autoEscrowApi = {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
     const endpoint = options.public ? "/marketplace/agents" : "/agents";
-    return request<ApiList<ApiAgent>>(`${endpoint}${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgent> | ApiAgent[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then((response) => ({
+      items: normalizeListResponse(response),
+      total: Array.isArray(response) ? response.length : (response as ApiList<ApiAgent> | null)?.total ?? 0,
+    } satisfies ApiList<ApiAgent>));
   },
 
   listMyAgents(params: Record<string, string | number | undefined> = {}) {
@@ -676,7 +685,10 @@ export const autoEscrowApi = {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
     const endpoint = options.public ? "/jobs/public" : "/jobs";
-    return request<ApiList<ApiJob>>(`${endpoint}${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then((response) => ({
+      items: normalizeListResponse(response),
+      total: Array.isArray(response) ? response.length : (response as ApiList<ApiJob> | null)?.total ?? 0,
+    } satisfies ApiList<ApiJob>));
   },
 
   getJob(jobId: number | string) {
