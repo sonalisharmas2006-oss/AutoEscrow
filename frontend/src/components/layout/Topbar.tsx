@@ -25,15 +25,15 @@ export const Topbar = () => {
           type="button"
           onClick={resetSimulation}
           className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white transition-all hover:bg-white/10"
-          title="Reset Flow to Discover state"
+          title="Reset flow state"
         >
           <RefreshCw className="h-3.5 w-3.5" />
-          <span>Reset Demo</span>
+          <span>Reset view</span>
         </LiquidButton>
 
         <div className="hidden items-center gap-2 rounded-lg border border-black/10 bg-black/[0.03] px-3 py-1.5 text-xs text-[#888888] dark:border-white/10 dark:bg-white/5 dark:text-[#CCCCCC] sm:flex">
           <Info className="h-3.5 w-3.5" />
-          <span className="font-semibold">Synthetic demo · no real funds</span>
+          <span className="font-semibold">V2 wallet mode · simulated ledger</span>
         </div>
 
         <LiquidButton type="button" aria-label="Notifications" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white/10">

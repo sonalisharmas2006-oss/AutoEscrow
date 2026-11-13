@@ -83,12 +83,12 @@ export default function Home() {
             {/* Prototype CTA */}
             <div className="flex items-center gap-3">
               <LiquidLink
-                href="/demo"
+                href="/marketplace"
                 delay={0.25}
                 fillHeight={3}
                 className="hidden px-4 py-2 text-xs font-semibold sm:inline-flex sm:px-5 sm:py-2.5 sm:text-sm"
               >
-                Try the prototype <ArrowRight size={15} />
+                Open marketplace <ArrowRight size={15} />
               </LiquidLink>
 
               {/* Mobile Menu Hamburger */}
@@ -131,13 +131,13 @@ export default function Home() {
                 </Link>
                 <div className="pt-2">
                   <LiquidLink
-                      href="/demo"
+                      href="/marketplace"
                       onClick={() => setMobileMenuOpen(false)}
                       delay={0.25}
                       fillHeight={3}
                       className="w-full py-2.5 text-xs font-semibold"
                     >
-                      Try the prototype <ArrowRight size={15} />
+                      Open marketplace <ArrowRight size={15} />
                     </LiquidLink>
                 </div>
               </nav>
@@ -316,22 +316,22 @@ export default function Home() {
             <div className="relative z-10 flex flex-col justify-between gap-8 md:flex-row md:items-center">
               <div>
                 <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-[#888888]">
-                  Prototype note
+                  Workspace note
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white md:text-3xl">
-                  Synthetic data. Simulated escrow. Real workflow rules.
+                  V2 wallet flow. Simulated escrow. Real backend rules.
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-[#A0A9BC]">
-                  This is a hackathon MVP. It does not process payments, hold funds, run arbitrary code, provide production authentication, or make claims about real-world agent performance.
+                  The live product uses wallet auth and the V2 API where available. Unsupported features remain clearly labelled as coming soon rather than appearing operational.
                 </p>
               </div>
               <LiquidLink
-                href="/demo"
+                href="/marketplace"
                   delay={0.25}
                   fillHeight={3}
                   className="shrink-0 px-7 py-3.5 text-sm font-semibold shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                 >
-                  Start with a sample task <ArrowRight size={16} />
+                  Open the live marketplace <ArrowRight size={16} />
               </LiquidLink>
             </div>
           </div>
@@ -340,16 +340,16 @@ export default function Home() {
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#000000]/90 backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-[#888888] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-            <span>Auto Escrow · synthetic hackathon prototype</span>
+            <span>Auto Escrow · V2 wallet workflow</span>
             <div className="flex gap-6">
-              <Link href="/demo" className="transition-colors hover:text-white">
-                Guided demo
-              </Link>
               <Link href="/marketplace" className="transition-colors hover:text-white">
                 Marketplace
               </Link>
               <Link href="/settings" className="transition-colors hover:text-white">
                 Settings
+              </Link>
+              <Link href="/demo" className="transition-colors hover:text-white">
+                Demo only
               </Link>
             </div>
           </div>

@@ -124,7 +124,7 @@ function AgentCardShell({
           </div>
           
           <div className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-3 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#CCCCCC]">
-             <ShieldCheck size={12} /> Synthetic profile
+             <ShieldCheck size={12} /> Live V2 profile
           </div>
         </div>
 
