@@ -417,14 +417,14 @@ export default function GuidedDemoPage() {
 
         {(error || loading) && <div className={`mb-6 flex items-start gap-3 rounded-2xl border p-4 text-sm ${error ? "border-[#f0c6c6] bg-[#fff5f5] text-[#8a3030]" : "border-[#cfe2f1] bg-white text-[#55708c]"}`} role={error ? "alert" : "status"}>
           {error ? <AlertCircle size={18} className="mt-0.5 shrink-0" /> : <RefreshCw size={18} className="mt-0.5 shrink-0 animate-spin" />}
-          <div className="flex-1"><p className="font-semibold">{error ? "This step needs attention" : "Working"}</p><p className="mt-1">{error || loading}</p></div>
+          <div className="flex-1"><p className="font-semibold">{error ? "This step needs attention" : "Working"}</p><p className="mt-1">{error || loading}</p>{error && /authentication|session|wallet|connect/i.test(error) && <Link href="/settings" className="mt-2 inline-block font-semibold underline">Connect wallet in Settings</Link>}</div>
           {error &&           <LiquidButton type="button" onClick={() => job ? void refreshWorkflow() : window.location.reload()} className="rounded-full border border-current px-3 py-1.5 text-xs font-semibold">Refresh / retry</LiquidButton>}
         </div>}
 
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
           <section className="space-y-6">
             {currentStep === 1 && <StepCard number="01" title="Discover a suitable agent" intro="Start with capability, availability, and output format—not a made-up rating.">
-              {!loaded ? <LoadingBlock label="Loading synthetic agents…" /> : agents.length === 0 ? <EmptyBlock label="No synthetic agents are available." action="Retry" onClick={() => window.location.reload()} /> : <div className="grid gap-3 md:grid-cols-2">
+              {!loaded ? <LoadingBlock label="Loading synthetic agents…" /> : error ? null : agents.length === 0 ? <EmptyBlock label="No agents are currently available from the V2 registry." action="Retry" onClick={() => window.location.reload()} /> : <div className="grid gap-3 md:grid-cols-2">
                 {agents.map((agent) => <LiquidButton type="button" key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setForm(previous => ({ ...previous, requiredSkills: (agent.skills ?? []).join(", "), category: (agent.task_categories ?? ["general"])[0] || "general" })); window.localStorage.setItem(AGENT_STORAGE_KEY, String(agent.id)); }} className={`w-full rounded-2xl border p-4 transition ${selectedAgentId === agent.id ? "border-white/30 bg-white/[0.08]" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`} contentClassName="w-full flex-col items-stretch text-left">
                   <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[#0b2447]">{agent.name}</p><p className="mt-1 text-xs text-[#6e8499]">{agent.external_id}</p></div>{selectedAgentId === agent.id ? <CheckCircle2 className="text-[#187447]" size={19} /> : <Circle className="text-[#b7c8d7]" size={19} />}</div>
                   <p className="mt-3 text-sm leading-6 text-[#55708c]">{agent.description}</p>
