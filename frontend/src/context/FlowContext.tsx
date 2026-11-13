@@ -86,25 +86,27 @@ const transactionFromJob = (
   match?: ApiMatchRun,
   extras: { agreement?: ApiAgreement | null; escrow?: ApiEscrow | null; execution?: ApiExecution | null; verification?: ApiVerification | null } = {},
 ): Transaction => {
-  const selectedCandidate = match?.candidates.find((candidate) => candidate.agent_id === agent.backendId);
+  const selectedCandidate = match?.candidates?.find((candidate) => candidate.agent_id === agent.backendId);
   const score = selectedCandidate ? Number(selectedCandidate.score) : 82;
+  const deadline = job.deadline ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  const updatedAt = job.updated_at || job.created_at || new Date().toISOString();
   return {
     id: job.public_id || String(job.id),
     buyer: job.requester_agent_id ? `Requester Agent #${job.requester_agent_id}` : "AutoEscrow Requester",
     provider: agent,
     task: job.title,
-    amount: Number(job.budget),
-    currency: job.currency,
+    amount: Number(job.budget ?? 0),
+    currency: job.currency ?? "VCR",
     status: workflowStatus(job, extras.escrow || null, extras.execution || null, extras.verification || null),
     riskScore: Math.max(0, Math.min(100, Math.round(100 - score))),
-    slaMinutes: Math.max(0, Math.round((new Date(job.deadline).getTime() - Date.now()) / 60000)),
-    timestamp: new Date(job.updated_at || job.created_at).toLocaleString(),
+    slaMinutes: Math.max(0, Math.round((new Date(deadline).getTime() - Date.now()) / 60000)),
+    timestamp: new Date(updatedAt).toLocaleString(),
     backendJobId: job.id,
     publicJobId: job.public_id,
-    agreementId: extras.agreement?.id,
-    escrowId: extras.escrow?.id,
+    agreementId: extras.agreement ? Number(extras.agreement.id) : undefined,
+    escrowId: extras.escrow ? Number(extras.escrow.id) : undefined,
     executionStatus: extras.execution?.execution_status,
-    verificationId: extras.verification?.id,
+    verificationId: extras.verification ? Number(extras.verification.id) : undefined,
   };
 };
 
@@ -170,7 +172,7 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
     const registry = await autoEscrowApi.listAgents({ status: "active", availability: "available" });
     const identifier = input.agentIdentifier?.trim().toLowerCase();
     const apiAgent = registry.items.find((agent) =>
-      !identifier || String(agent.id) === identifier || agent.external_id.toLowerCase() === identifier || agent.name.toLowerCase() === identifier,
+      !identifier || String(agent.id) === identifier || (agent.external_id ?? "").toLowerCase() === identifier || agent.name.toLowerCase() === identifier,
     );
     const agent = apiAgent ? mapApiAgentToAgent(apiAgent) : selectedAgent;
     if (!agent.backendId) throw new Error("Enter a registered backend agent id or external id before deploying.");
@@ -185,8 +187,9 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
       budget: input.budget,
       currency: input.currency || "USD",
     });
-    const agreement = await autoEscrowApi.createAgreement(job.id, {
-      currency: job.currency,
+    const agreement = await autoEscrowApi.createAgreement({
+      job_id: job.id,
+      agent_id: agent.backendId,
       terms: {
         scope: job.description,
         expected_deliverable: job.expected_output,

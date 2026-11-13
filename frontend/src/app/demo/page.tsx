@@ -82,7 +82,7 @@ const errorText = (error: unknown) => error instanceof Error ? error.message : "
 
 export default function GuidedDemoPage() {
   const [agents, setAgents] = useState<ApiAgent[]>([]);
-  const [selectedAgentId, setSelectedAgentId] = useState<number | null>(null);
+  const [selectedAgentId, setSelectedAgentId] = useState<number | string | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [job, setJob] = useState<ApiJob | null>(null);
   const [matches, setMatches] = useState<ApiMatchRun | null>(null);
@@ -142,7 +142,7 @@ export default function GuidedDemoPage() {
         if (query.has("new")) { localStorage.removeItem(JOB_STORAGE_KEY); localStorage.removeItem(AGENT_STORAGE_KEY); }
         const storedAgent = Number(query.get("agent") || window.localStorage.getItem(AGENT_STORAGE_KEY));
         const storedAgentRecord = response.items.find((agent) => agent.id === storedAgent);
-        if (storedAgentRecord) { setSelectedAgentId(storedAgentRecord.id); if (query.has("agent")) setForm(previous => ({ ...previous, requiredSkills: storedAgentRecord.skills.join(", "), category: storedAgentRecord.task_categories[0] || "general" })); }
+        if (storedAgentRecord) { setSelectedAgentId(storedAgentRecord.id); if (query.has("agent")) setForm(previous => ({ ...previous, requiredSkills: (storedAgentRecord.skills ?? []).join(", "), category: (storedAgentRecord.task_categories ?? ["general"])[0] || "general" })); }
         const storedJob = Number(query.get("job") || (query.has("agent") ? null : window.localStorage.getItem(JOB_STORAGE_KEY)));
         if (storedJob) window.localStorage.setItem(JOB_STORAGE_KEY, String(storedJob));
         if (storedJob) await refreshWorkflow(storedJob, response.items);
@@ -425,11 +425,11 @@ export default function GuidedDemoPage() {
           <section className="space-y-6">
             {currentStep === 1 && <StepCard number="01" title="Discover a suitable agent" intro="Start with capability, availability, and output format—not a made-up rating.">
               {!loaded ? <LoadingBlock label="Loading synthetic agents…" /> : agents.length === 0 ? <EmptyBlock label="No synthetic agents are available." action="Retry" onClick={() => window.location.reload()} /> : <div className="grid gap-3 md:grid-cols-2">
-                {agents.map((agent) => <LiquidButton type="button" key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setForm(previous => ({ ...previous, requiredSkills: agent.skills.join(", "), category: agent.task_categories[0] || "general" })); window.localStorage.setItem(AGENT_STORAGE_KEY, String(agent.id)); }} className={`w-full rounded-2xl border p-4 transition ${selectedAgentId === agent.id ? "border-white/30 bg-white/[0.08]" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`} contentClassName="w-full flex-col items-stretch text-left">
+                {agents.map((agent) => <LiquidButton type="button" key={agent.id} onClick={() => { setSelectedAgentId(agent.id); setForm(previous => ({ ...previous, requiredSkills: (agent.skills ?? []).join(", "), category: (agent.task_categories ?? ["general"])[0] || "general" })); window.localStorage.setItem(AGENT_STORAGE_KEY, String(agent.id)); }} className={`w-full rounded-2xl border p-4 transition ${selectedAgentId === agent.id ? "border-white/30 bg-white/[0.08]" : "border-white/10 bg-white/[0.03] hover:border-white/25"}`} contentClassName="w-full flex-col items-stretch text-left">
                   <div className="flex items-start justify-between gap-3"><div><p className="font-semibold text-[#0b2447]">{agent.name}</p><p className="mt-1 text-xs text-[#6e8499]">{agent.external_id}</p></div>{selectedAgentId === agent.id ? <CheckCircle2 className="text-[#187447]" size={19} /> : <Circle className="text-[#b7c8d7]" size={19} />}</div>
                   <p className="mt-3 text-sm leading-6 text-[#55708c]">{agent.description}</p>
-                  <div className="mt-3 flex flex-wrap gap-1.5">{agent.skills.slice(0, 4).map((skill) => <span key={skill} className="rounded-full bg-[#f1f6fa] px-2.5 py-1 text-[11px] text-[#4c6882]">{skill}</span>)}</div>
-                  <div className="mt-4 flex items-center justify-between border-t border-[#e6eef4] pt-3 text-xs text-[#6b8298]"><span>{agent.availability}</span><span>{agent.supported_output_formats.join(" · ") || "format not specified"}</span></div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">{(agent.skills ?? []).slice(0, 4).map((skill) => <span key={skill} className="rounded-full bg-[#f1f6fa] px-2.5 py-1 text-[11px] text-[#4c6882]">{skill}</span>)}</div>
+                  <div className="mt-4 flex items-center justify-between border-t border-[#e6eef4] pt-3 text-xs text-[#6b8298]"><span>{agent.availability}</span><span>{(agent.supported_output_formats ?? []).join(" · ") || "format not specified"}</span></div>
                 </LiquidButton>)}
               </div>}
               <div className="mt-5 rounded-2xl bg-[#f7fafc] p-4 text-sm text-[#55708c]"><strong className="text-[#24435f]">Why this matters:</strong> the backend will later re-check eligibility. Selecting a card is not a guarantee that the work will pass.</div>
