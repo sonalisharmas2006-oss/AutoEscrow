@@ -1,3 +1,5 @@
+import { isUnexpectedApiPayload, normalizeApiBaseUrl, normalizeApiRequestPath, parseJsonResponse, summarizeApiFailure } from "./apiHelpers.mjs";
+
 export type ApiJson = Record<string, unknown>;
 
 export interface ApiUser {
@@ -388,8 +390,8 @@ export class AutoEscrowApiError extends Error {
 }
 
 const DEFAULT_BACKEND = "https://autoescrow-api-zaa0.onrender.com";
-const configuredApiUrl = (process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || DEFAULT_BACKEND).replace(/\/+$/, "");
-const API_BASE_URL = configuredApiUrl.endsWith("/api/v1") ? configuredApiUrl : `${configuredApiUrl}/api/v1`;
+const configuredApiUrl = process.env.API_BASE_URL || process.env.NEXT_PUBLIC_API_BASE_URL || process.env.NEXT_PUBLIC_API_URL || DEFAULT_BACKEND;
+const API_BASE_URL = normalizeApiBaseUrl(configuredApiUrl);
 const ACCESS_TOKEN_STORAGE_KEY = "autoescrow_v2_access_token";
 const REFRESH_TOKEN_STORAGE_KEY = "autoescrow_v2_refresh_token";
 const USER_STORAGE_KEY = "autoescrow_v2_user";
@@ -435,20 +437,28 @@ export const authState = {
 };
 
 export function normalizeApiPath(path: string): string {
-  if (/^https?:\/\//.test(path)) return path;
-  if (path.startsWith("/api/")) return typeof window === "undefined" ? `${API_BASE_URL}${path.replace(/^\//, "")}` : path;
-  if (path.startsWith("/")) return typeof window === "undefined" ? `${API_BASE_URL}${path}` : path;
-  return `${API_BASE_URL}/${path}`;
+  return normalizeApiRequestPath(path, API_BASE_URL);
 }
 
 const readJsonBody = async (response: Response) => {
   if (response.status === 204) return null;
   const contentType = response.headers.get("content-type") || "";
-  if (contentType.includes("application/json")) {
-    return (await response.json()) as unknown;
+  const rawText = await response.text();
+  if (!rawText) return null;
+
+  if (contentType.includes("application/json") || rawText.trim().startsWith("{") || rawText.trim().startsWith("[")) {
+    const parsed = parseJsonResponse(rawText, contentType);
+    return parsed === rawText ? rawText : parsed;
   }
-  const text = await response.text();
-  return text ? text : null;
+
+  if (contentType.includes("text/html") || /<html|<!doctype/i.test(rawText)) {
+    if (process.env.NODE_ENV !== "production") {
+      console.error("AutoEscrow API returned HTML instead of JSON", { url: response.url, status: response.status, contentType });
+    }
+    return rawText;
+  }
+
+  return rawText;
 };
 
 async function refreshAccessToken(): Promise<string | null> {
@@ -512,13 +522,23 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   }
 
   const payload = await readJsonBody(response);
+  const contentType = response.headers.get("content-type") || "";
 
   if (!response.ok) {
     if (response.status === 401) {
       authState.clear();
     }
-    const detail = payload && typeof payload === "object" && "detail" in payload ? (payload as Record<string, unknown>).detail : payload;
-    throw new AutoEscrowApiError(response.status, detail ?? "The AutoEscrow V2 API request failed.");
+
+    const detail = summarizeApiFailure(response.status, contentType, payload, url);
+    if (process.env.NODE_ENV !== "production") {
+      console.error("AutoEscrow API failure", { url, status: response.status, contentType, payload });
+    }
+
+    throw new AutoEscrowApiError(response.status, detail);
+  }
+
+  if (isUnexpectedApiPayload(payload, contentType)) {
+    throw new AutoEscrowApiError(502, summarizeApiFailure(response.status, contentType, payload, url));
   }
 
   return (payload ?? null) as T;
@@ -684,7 +704,8 @@ export const autoEscrowApi = {
   listJobs(params: Record<string, string | number | undefined> = {}, options: { public?: boolean; session?: "required" | "optional" } = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    const endpoint = options.public ? "/jobs/public" : "/jobs";
+    void options;
+    const endpoint = "/jobs";
     return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then((response) => ({
       items: normalizeListResponse(response),
       total: Array.isArray(response) ? response.length : (response as ApiList<ApiJob> | null)?.total ?? 0,
@@ -704,21 +725,28 @@ export const autoEscrowApi = {
   },
 
   matchAgents(payload: Record<string, unknown>) {
-    return request<{ matches: ApiMatchCandidate[] }>("/matching/agents", { method: "POST", body: payload });
+    void payload;
+    return Promise.reject(new AutoEscrowApiError(501, "V2 matching requires an existing job. Create a job before requesting matches."));
   },
 
   matchJobAgents(jobId: number | string, payload: Record<string, unknown> = {}) {
-    return request<{ matches: ApiMatchCandidate[] }>(`/matching/jobs/${path(jobId)}`, { method: "POST", body: payload });
+    void payload;
+    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
   },
 
   createAgreement(...args: [ApiAgreementCreateRequest] | [number | string, ApiAgreementCreateRequest | Record<string, unknown>] | [Record<string, unknown>]) {
     const [first, second] = args;
-    const payload = second ?? first;
-    return request<ApiAgreement>("/agreements", { method: "POST", body: payload as Record<string, unknown> });
+    const payload = (second ?? first) as ApiAgreementCreateRequest;
+    const jobId = typeof first === "number" || typeof first === "string" ? first : payload.job_id;
+    if (jobId === undefined) {
+      return Promise.reject(new AutoEscrowApiError(400, "A job id is required to create an agreement."));
+    }
+    const { job_id: _jobId, ...body } = payload;
+    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body });
   },
 
   listAgreements() {
-    return request<ApiList<ApiAgreement>>("/agreements");
+    return Promise.reject(new AutoEscrowApiError(501, "V2 agreements are retrieved by job. Open a job to view its agreement."));
   },
 
   getAgreement(agreementId: number | string) {
@@ -726,7 +754,7 @@ export const autoEscrowApi = {
   },
 
   createAgreementVersion(agreementId: number | string, payload: Record<string, unknown>) {
-    return request<ApiAgreement>(`/agreements/${path(agreementId)}/versions`, { method: "POST", body: payload });
+    return request<ApiAgreement>(`/agreements/${path(agreementId)}/revise`, { method: "POST", body: payload });
   },
 
   acceptAgreement(...args: unknown[]) {
@@ -740,20 +768,20 @@ export const autoEscrowApi = {
     return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: payload as Record<string, unknown> });
   },
 
-  createEscrow(payload: { agreement_id: string | number }) {
-    return request<ApiEscrow>("/escrows", { method: "POST", body: payload });
+  createEscrow(_payload: { agreement_id: string | number }) {
+    return Promise.reject(new AutoEscrowApiError(501, "V2 escrow is created by funding an accepted job agreement."));
   },
 
   listEscrows() {
-    return request<ApiList<ApiEscrow>>("/escrows");
+    return Promise.reject(new AutoEscrowApiError(501, "V2 escrows are retrieved by job or escrow id."));
   },
 
   getEscrow(escrowId: number | string) {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}`);
   },
 
-  fundEscrow(escrowId: number | string, payload: { idempotency_key?: string; reference?: string } = {}) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/fund`, { method: "POST", body: payload });
+  fundEscrow(jobId: number | string, payload: { idempotency_key?: string; reference?: string } = {}) {
+    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
   },
 
   releaseEscrow(escrowId: number | string, payload: { idempotency_key?: string } = {}) {
@@ -765,34 +793,34 @@ export const autoEscrowApi = {
   },
 
   computeMatches(jobId: number | string) {
-    return request<ApiMatchRun>(`/matching/jobs/${path(jobId)}`, { method: "POST" });
+    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
   },
 
   getMatches(jobId: number | string) {
-    return request<ApiMatchRun | null>(`/matching/jobs/${path(jobId)}`);
+    return request<ApiMatchRun | null>(`/jobs/${path(jobId)}/matches`);
   },
 
   selectAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return request<ApiJob>(`/jobs/${path(jobId)}`, {
-      method: "PATCH",
-      body: { selected_agent_id: agentId, selected_match_run_id: runId },
+    return request<ApiJob>(`/jobs/${path(jobId)}/matches/${path(agentId)}/select`, {
+      method: "POST",
+      body: runId ? { run_id: runId } : {},
     });
   },
 
   getAgreementForJob(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiAgreement | null>(`/agreements?job_id=${encodeURIComponent(String(jobId))}`);
+    return request<ApiAgreement | null>(`/jobs/${path(jobId)}/agreement`);
   },
 
   getEscrowForJob(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiEscrow | null>(`/escrows?job_id=${encodeURIComponent(String(jobId))}`);
+    return request<ApiEscrow | null>(`/jobs/${path(jobId)}/escrow`);
   },
 
   getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiExecution>(`/jobs/${path(jobId)}`);
+    return request<ApiExecution>(`/jobs/${path(jobId)}/execution`);
   },
 
   getVerification(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiVerification | null>(`/jobs/${path(jobId)}`);
+    return request<ApiVerification | null>(`/jobs/${path(jobId)}/verification`);
   },
 
   startExecution(jobId: number | string) {
@@ -808,11 +836,11 @@ export const autoEscrowApi = {
   },
 
   getLedgerBalance() {
-    return request<Record<string, unknown>>("/ledger/me");
+    return Promise.reject(new AutoEscrowApiError(501, "The V2 API does not expose a personal ledger balance endpoint."));
   },
 
   getLedgerTransactions() {
-    return request<ApiList<ApiLedgerEntry>>("/ledger/me/transactions");
+    return Promise.reject(new AutoEscrowApiError(501, "The V2 API does not expose personal ledger transactions."));
   },
 
   listSessions() {

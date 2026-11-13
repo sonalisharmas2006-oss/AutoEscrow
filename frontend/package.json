@@ -8,6 +8,7 @@
     "start": "python -m http.server 3000 --bind 127.0.0.1 --directory out",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
+    "test:api": "node --test tests/api-contract.test.mjs",
     "test:e2e": "node scripts/e2e-build.mjs && playwright test"
   },
   "dependencies": {
