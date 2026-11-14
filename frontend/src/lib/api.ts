@@ -101,7 +101,7 @@ export interface ApiMatchReason {
 
 export interface ApiMatchCandidate {
   agent_id: string | number; agent_name: string; agent?: ApiAgent; score: number;
-  reasons?: ApiMatchReason[]; explanation: string; eligible?: boolean;
+  reasons?: ApiMatchReason[]; explanation: string; eligible: boolean;
   matched_skills?: string[]; missing_skills?: string[]; breakdown?: Record<string, unknown>;
   warnings?: string[]; exclusion_reasons?: string[];
 }
@@ -748,7 +748,14 @@ export const autoEscrowApi = {
   },
 
   matchJobAgents(jobId: number | string) {
-    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
+    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" }).then((response) => ({
+      ...response,
+      matches: response.candidates.map((candidate) => ({
+        ...candidate,
+        agent: { id: candidate.agent_id, name: candidate.agent_name } as ApiAgent,
+        reasons: candidate.reasons ?? [],
+      })),
+    }));
   },
 
   selectJobAgent(jobId: number | string, agentId: number | string, runId?: string) {
