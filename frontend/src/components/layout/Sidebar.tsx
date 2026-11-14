@@ -4,16 +4,11 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import {
   Award,
-  CheckCircle2,
-  Compass,
+  FileText,
   LayoutDashboard,
-  Lock,
   Menu,
-  MessageSquareCode,
   PlayCircle,
-  PlusCircle,
   Settings,
-  ShieldAlert,
   Store,
   X,
 } from "lucide-react";
@@ -24,17 +19,11 @@ import Magnet from "@/components/Magnet";
 
 const navItems = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Guided Demo", href: "/demo", icon: PlayCircle },
-  { label: "Jobs", href: "/jobs", icon: PlusCircle },
-  { label: "Discover", href: "/discover", icon: Compass },
-  { label: "Risk Matrix", href: "/risk", icon: ShieldAlert },
-  { label: "Negotiation", href: "/negotiation", icon: MessageSquareCode },
-  { label: "Escrow Vault", href: "/escrow", icon: Lock },
-  { label: "Execution", href: "/execution", icon: PlayCircle },
-  { label: "Verification", href: "/verification", icon: CheckCircle2 },
-  { label: "Disputes", href: "/disputes", icon: ShieldAlert },
+  { label: "Guided Workflow", href: "/demo", icon: PlayCircle },
+  { label: "Jobs", href: "/jobs", icon: FileText },
+  { label: "Agreements", href: "/agreements", icon: FileText },
+  { label: "Simulated Escrow", href: "/escrow", icon: Store },
   { label: "Audit history", href: "/audit", icon: Award },
-  { label: "Initialize Escrow", href: "/initialize", icon: PlusCircle },
   { label: "Marketplace", href: "/marketplace", icon: Store },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

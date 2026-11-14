@@ -1,52 +1,11 @@
 "use client";
 
-import React from "react";
-import { Bell, Info, RefreshCw } from "lucide-react";
-import { useFlow } from "@/context/FlowContext";
-import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
+import Link from "next/link";
+import { Info, Settings } from "lucide-react";
 
-export const Topbar = () => {
-  const { activeTransaction, resetSimulation } = useFlow();
-
-  return (
-    <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-black/10 bg-white/70 px-6 backdrop-blur-xl dark:border-white/10 dark:bg-[#0A0A0A]/80">
-      <div className="flex items-center gap-3">
-        <span className="font-mono text-xs text-[#888888]">Active Task:</span>
-        <span className="rounded border border-black/15 bg-black/5 px-2 py-1 font-mono text-xs text-black dark:border-white/20 dark:bg-white/10 dark:text-white">
-          {activeTransaction.id}
-        </span>
-        <span className="hidden max-w-sm truncate text-xs text-[#888888] md:inline">
-          {activeTransaction.task}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-4">
-        <LiquidButton
-          type="button"
-          onClick={resetSimulation}
-          className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-xs text-white transition-all hover:bg-white/10"
-          title="Reset flow state"
-        >
-          <RefreshCw className="h-3.5 w-3.5" />
-          <span>Reset view</span>
-        </LiquidButton>
-
-        <div className="hidden items-center gap-2 rounded-lg border border-black/10 bg-black/[0.03] px-3 py-1.5 text-xs text-[#888888] dark:border-white/10 dark:bg-white/5 dark:text-[#CCCCCC] sm:flex">
-          <Info className="h-3.5 w-3.5" />
-          <span className="font-semibold">V2 wallet mode · simulated ledger</span>
-        </div>
-
-        <LiquidButton type="button" aria-label="Notifications" className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/15 bg-white/5 text-white hover:bg-white/10">
-          <Bell className="h-4 w-4" />
-        </LiquidButton>
-
-        <div className="flex items-center gap-2 border-l border-black/10 pl-2 dark:border-white/10">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full border border-black/20 bg-black font-mono text-xs font-bold text-white dark:border-white/20 dark:bg-white dark:text-black">
-            MP
-          </div>
-          <span className="hidden text-xs font-medium text-black dark:text-white lg:inline">MasterProtocol</span>
-        </div>
-      </div>
-    </header>
-  );
-};
+export const Topbar = () => (
+ <header className="sticky top-0 z-20 flex min-h-16 items-center justify-between gap-4 border-b border-white/10 bg-[#080808]/85 px-4 backdrop-blur-xl sm:px-6">
+  <div className="min-w-0"><p className="text-xs font-semibold uppercase tracking-[0.16em] text-neutral-300">AutoEscrow workspace</p><p className="mt-1 text-[11px] text-neutral-500">V2 · backend-scoped demo session</p></div>
+  <div className="flex items-center gap-3"><span className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-[11px] text-neutral-400 sm:flex"><Info size={13}/> Simulated ledger only</span><Link href="/settings" aria-label="Session settings" title="Session settings" className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/15 bg-white/[0.04] text-neutral-200 hover:bg-white/10"><Settings size={16}/></Link></div>
+ </header>
+);

@@ -1,2 +1,2 @@
 import WorkflowRegistry from "@/components/WorkflowRegistry";
-export default function HistoryPage() { return <WorkflowRegistry view="history" />; }
+export default function ReputationPage(){return <WorkflowRegistry view="risk"/>;}

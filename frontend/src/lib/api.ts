@@ -397,6 +397,7 @@ const API_BASE_URL = normalizeApiBaseUrl(configuredApiUrl);
 const ACCESS_TOKEN_STORAGE_KEY = "autoescrow_v2_access_token";
 const REFRESH_TOKEN_STORAGE_KEY = "autoescrow_v2_refresh_token";
 const USER_STORAGE_KEY = "autoescrow_v2_user";
+const DEMO_SESSION_STORAGE_KEY = "autoescrow_v2_demo_session";
 
 const readStorage = <T>(key: string): T | null => {
   if (typeof window === "undefined") return null;
@@ -424,6 +425,8 @@ export const authState = {
   getAccessToken: () => readStorage<string>(ACCESS_TOKEN_STORAGE_KEY),
   getRefreshToken: () => readStorage<string>(REFRESH_TOKEN_STORAGE_KEY),
   getUser: () => readStorage<ApiUser>(USER_STORAGE_KEY),
+  getDemoSessionToken: () => readStorage<string>(DEMO_SESSION_STORAGE_KEY),
+  setDemoSessionToken: (token: string | null) => writeStorage(DEMO_SESSION_STORAGE_KEY, token),
   setTokens: (accessToken: string | null, refreshToken: string | null, user?: ApiUser | null) => {
     writeStorage(ACCESS_TOKEN_STORAGE_KEY, accessToken ?? null);
     writeStorage(REFRESH_TOKEN_STORAGE_KEY, refreshToken ?? null);
@@ -434,6 +437,7 @@ export const authState = {
     writeStorage(ACCESS_TOKEN_STORAGE_KEY, null);
     writeStorage(REFRESH_TOKEN_STORAGE_KEY, null);
     if (typeof window !== "undefined") window.sessionStorage.removeItem(USER_STORAGE_KEY);
+    writeStorage(DEMO_SESSION_STORAGE_KEY, null);
     refreshTokenPromise = null;
   },
 };
@@ -500,6 +504,8 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const accessToken = authState.getAccessToken();
     if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   }
+  const demoSessionToken = authState.getDemoSessionToken();
+  if (demoSessionToken) headers.set("X-Demo-Session", demoSessionToken);
 
   let response = await fetch(url, {
     method: options.method ?? "GET",
@@ -613,17 +619,20 @@ const normalizeListResponse = <T>(value: ApiList<T> | T[] | null | undefined): T
 };
 
 export const autoEscrowApi = {
-  startDemoSession(_accessCode = "") {
-    return Promise.reject(new AutoEscrowApiError(410, "Demo session authentication has been removed. Use the V2 wallet SIWE flow instead."));
+  async startDemoSession(accessCode = "") {
+    const session = await request<ApiDemoSession>("/demo/session", { method: "POST", body: { access_code: accessCode } });
+    authState.setDemoSessionToken(session.token);
+    return session;
   },
 
-  resetDemoSession() {
-    authState.clear();
-    return Promise.resolve({ token: "", expires_at: "", session_scope: "", max_jobs: 0, max_budget: "0", simulated_escrow: false } satisfies ApiDemoSession);
+  async resetDemoSession() {
+    const session = await request<ApiDemoSession>("/demo/session/reset", { method: "POST" });
+    authState.setDemoSessionToken(session.token);
+    return session;
   },
 
   getDemoSessionToken() {
-    return authState.getAccessToken();
+    return authState.getDemoSessionToken();
   },
 
   auth: {

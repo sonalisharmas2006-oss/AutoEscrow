@@ -38,10 +38,8 @@ export default function MarketplacePage() {
     try {
       const result = await autoEscrowApi.listMarketplaceAgents({
         limit: PAGE_SIZE,
-        offset: page * PAGE_SIZE,
+        skip: page * PAGE_SIZE,
         ...(status ? { status } : {}),
-        ...(category ? { category } : {}),
-        ...(search.trim() ? { search: search.trim() } : {}),
       });
       setAgents(Array.isArray(result.items) ? result.items : []);
       setTotal(Number.isFinite(result.total) ? result.total : result.items.length);
@@ -74,7 +72,12 @@ export default function MarketplacePage() {
     ...(agent.supported_task_types ?? []),
   ]))).sort((a, b) => a.localeCompare(b)), [agents]);
 
-  const sortedAgents = useMemo(() => [...agents].sort((a, b) => {
+  const sortedAgents = useMemo(() => agents.filter((agent) => {
+    const query = search.trim().toLowerCase();
+    const text = [agent.name, agent.description, agent.category, ...(agent.skills ?? []), ...(agent.capabilities ?? []), ...(agent.task_categories ?? [])].filter(Boolean).join(" ").toLowerCase();
+    const categoriesForAgent = [...(agent.category ? [agent.category] : []), ...(agent.task_categories ?? []), ...(agent.supported_task_types ?? [])];
+    return (!query || text.includes(query)) && (!category || categoriesForAgent.includes(category));
+  }).sort((a, b) => {
     if (sort === "price-low" || sort === "price-high") {
       const av = Number(a.price_amount ?? Number.POSITIVE_INFINITY);
       const bv = Number(b.price_amount ?? Number.POSITIVE_INFINITY);
@@ -82,7 +85,7 @@ export default function MarketplacePage() {
     }
     if (sort === "recent") return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
     return a.name.localeCompare(b.name);
-  }), [agents, sort]);
+  }), [agents, sort, search, category]);
 
   const openProfile = (id: string | number) => router.push(`/marketplace?agent=${encodeURIComponent(String(id))}`);
   const clearFilters = () => { setSearch(""); setCategory(""); setStatus(""); setSort("name"); setPage(0); };
@@ -119,8 +122,8 @@ export default function MarketplacePage() {
         <div className="text-sm text-neutral-400" aria-live="polite">{loading ? "Loading registry…" : `${total} registered agents`}</div>
       </header>
       <section className="mb-7 grid gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Marketplace filters">
-        <label className="relative block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"/><span className="sr-only">Search agents</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Search agents…" className="w-full rounded-lg border border-white/15 bg-black/30 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-white/40"/></label>
-        <label className="flex items-center gap-2 text-xs text-neutral-400"><SlidersHorizontal size={14}/><span className="sr-only">Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setPage(0); }} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label className="relative block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"/><span className="sr-only">Search agents</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search this page…" className="w-full rounded-lg border border-white/15 bg-black/30 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-white/40"/></label>
+        <label className="flex items-center gap-2 text-xs text-neutral-400"><SlidersHorizontal size={14}/><span className="sr-only">Category</span><select value={category} onChange={(event) => setCategory(event.target.value)} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
         <label className="sr-only" htmlFor="market-status">Status</label><select id="market-status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }} className="rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="active">Active</option><option value="">All statuses</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></select>
         <label className="sr-only" htmlFor="market-sort">Sort agents</label><select id="market-sort" value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="name">Sort: Name</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="recent">Recently listed</option></select>
       </section>
@@ -133,7 +136,7 @@ export default function MarketplacePage() {
           <p className="mt-3 text-sm text-neutral-300">{agent.price_amount == null ? "Pricing not supplied" : `${agent.price_amount} ${agent.currency ?? ""}`} <span className="text-xs text-neutral-500">{agent.pricing_model || ""}</span></p>
           <button type="button" onClick={() => openProfile(agent.id)} className="mt-auto flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">View profile <ArrowUpRight size={15}/></button>
         </article>)}</div>
-        <nav className="mt-7 flex items-center justify-between gap-4" aria-label="Marketplace pagination"><p className="text-xs text-neutral-500">Page {page+1} of {Math.max(1,Math.ceil(total/PAGE_SIZE))}</p><div className="flex gap-2"><button type="button" disabled={page===0} onClick={()=>setPage((v)=>Math.max(0,v-1))} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Previous</button><button type="button" disabled={(page+1)*PAGE_SIZE>=total} onClick={()=>setPage((v)=>v+1)} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Next</button></div></nav>
+        <nav className="mt-7 flex items-center justify-between gap-4" aria-label="Marketplace pagination"><p className="text-xs text-neutral-500">Page {page+1} of {Math.max(1,Math.ceil(total/PAGE_SIZE))} · Search and category filter this page</p><div className="flex gap-2"><button type="button" disabled={page===0} onClick={()=>setPage((v)=>Math.max(0,v-1))} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Previous</button><button type="button" disabled={(page+1)*PAGE_SIZE>=total} onClick={()=>setPage((v)=>v+1)} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Next</button></div></nav>
       </>}
       <p className="mt-8 text-xs leading-5 text-neutral-500">Demo profiles are registry examples. AutoEscrow V2 does not execute agent tasks in the current release. No ratings or reviews are inferred or fabricated.</p>
     </div>

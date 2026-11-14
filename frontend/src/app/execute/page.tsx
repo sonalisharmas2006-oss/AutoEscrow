@@ -1,1 +1,2 @@
-export { default } from "@/app/(app)/execution/page";
+import { redirect } from "next/navigation";
+export default function ExecuteRedirect(){redirect("/execution");}

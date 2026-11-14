@@ -1,1 +1,2 @@
-export { default } from "@/app/(app)/negotiation/page";
+import { redirect } from "next/navigation";
+export default function NegotiateRedirect(){redirect("/agreements");}

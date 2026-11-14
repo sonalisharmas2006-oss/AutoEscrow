@@ -1,141 +1,72 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Workspace from "./layout/Workspace";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import {
-  ApiAgreement,
-  ApiDispute,
-  ApiEscrow,
-  ApiExecution,
-  ApiJob,
-  ApiJobEvent,
-  ApiVerification,
-  autoEscrowApi as api,
-  formatMoney,
-} from "@/lib/api";
+import { ApiAgreement, ApiDashboardMetrics, ApiEscrow, ApiJob, ApiJobEvent, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
 type View = "dashboard" | "jobs" | "agreements" | "escrow" | "execution" | "verification" | "disputes" | "history" | "risk";
-
-const titles: Record<View, [string, string]> = {
-  dashboard: ["Your V2 workspace", "Only records belonging to the active wallet session and connected backend data appear here."],
-  jobs: ["Job registry", "A clear brief, recorded status, and a next step for every task."],
-  agreements: ["Agreements", "Read the proposal history and accepted terms. Acceptance freezes the version before funding."],
-  escrow: ["Simulated escrow ledger", "Funding and settlement entries are persisted accounting records, not real money transfers."],
-  execution: ["Execution & submissions", "Workflow state is sourced from the backend; unsupported execution features remain clearly marked as coming soon."],
-  verification: ["Verification results", "See each check and its explanation. Failed and manual-review results block normal release."],
-  disputes: ["Disputes & evidence", "Read evidence, status, rationale, and the recorded backend resolution. This is not independent arbitration."],
-  history: ["Audit history", "A readable record of persisted actions. No reputation tokens or blockchain claims."],
-  risk: ["Workflow safeguards", "Inspect real job states. Matching scores are not probabilities, and there is no financial-risk prediction."],
+const titles: Record<View, [string,string]> = {
+ dashboard:["Your V2 workspace","A live overview of records returned for the connected wallet session."],
+ jobs:["Job registry","Create a clear brief, inspect its persisted status, and continue the supported workflow."],
+ agreements:["Agreements","Review proposal terms and version history before funding."],
+ escrow:["Simulated escrow ledger","Persisted accounting records only. No real money is transferred or held."],
+ execution:["Execution · coming soon","Agent execution is not part of the currently supported frontend release."],
+ verification:["Verification · coming soon","Verification actions are not available in this frontend release."],
+ disputes:["Disputes · coming soon","Dispute handling is not enabled in this frontend release."],
+ history:["Audit history","Read persisted backend events for your jobs."],
+ risk:["Risk safeguards · coming soon","No financial-risk prediction or risk score is presented as an operational guarantee."]
 };
+type Row={job:ApiJob;agreement:ApiAgreement|null;escrow:ApiEscrow|null;events:ApiJobEvent[];issues:string[]};
 
-type Row = {
-  job: ApiJob;
-  agreement: ApiAgreement | null;
-  escrow: ApiEscrow | null;
-  execution: ApiExecution | null;
-  verification: ApiVerification | null;
-  disputes: ApiDispute[];
-  events: ApiJobEvent[];
-  detailIssues: string[];
-};
-
-export default function WorkflowRegistry({ view }: { view: View }) {
-  const [rows, setRows] = useState<Row[]>([]);
-  const [filter, setFilter] = useState("");
-  const [selected, setSelected] = useState<number | string | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError("");
-    try {
-      // Read-only workspace pages may show local seeded records without
-      // creating a new sandbox. Existing credentials are still attached.
-      const jobs = await api.listJobs({}, { session: "optional" });
-      const jobItems = Array.isArray(jobs?.items) ? jobs.items : Array.isArray(jobs) ? jobs : [];
-      const results = await Promise.all(jobItems.map(async (job): Promise<Row> => {
-        const detailRequests = await Promise.allSettled([
-          api.getAgreementForJob(job.id, { session: "optional" }),
-          api.getEscrowForJob(job.id, { session: "optional" }),
-          api.getExecution(job.id, { session: "optional" }),
-          api.getVerification(job.id, { session: "optional" }),
-          api.getJobDisputes(job.id, undefined, { session: "optional" }),
-          api.getJobEvents(job.id, { session: "optional" }),
-        ]);
-        const labels = ["agreement", "escrow", "execution", "verification", "disputes", "audit"];
-        const value = <T,>(index: number, fallback: T): T => {
-          const result = detailRequests[index];
-          return result.status === "fulfilled" ? result.value as T : fallback;
-        };
-        return {
-          job,
-          agreement: value<ApiAgreement | null>(0, null),
-          escrow: value<ApiEscrow | null>(1, null),
-          execution: value<ApiExecution | null>(2, null),
-          verification: value<ApiVerification | null>(3, null),
-          disputes: value<ApiDispute[]>(4, []),
-          events: value<ApiJobEvent[]>(5, []),
-          detailIssues: detailRequests.flatMap((result, index) => result.status === "rejected" ? [labels[index]] : []),
-        };
-      }));
-      setRows(results);
-      const query = Number(new URLSearchParams(window.location.search).get("job"));
-      if (query) setSelected(query);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "API unavailable");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void load(); }, [load]);
-
-  const visible = rows.filter((row) => {
-    const job = row?.job ?? {};
-    const title = typeof job.title === "string" ? job.title : "";
-    const publicId = typeof job.public_id === "string" ? job.public_id : "";
-    const status = typeof job.status === "string" ? job.status : "";
-    const escrowStatus = typeof row?.escrow?.status === "string" ? row.escrow.status : "";
-    return `${title} ${publicId} ${status} ${escrowStatus}`.toLowerCase().includes(filter.toLowerCase());
-  });
-  const detail = rows.find((row) => row.job.id === selected);
-
-  return (
-    <Workspace title={titles[view][0]} intro={titles[view][1]}>
-      <div className="toolbar">
-        <label>Filter your jobs<input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Title, job id, or status" /></label>
-        <LiquidButton type="button" onClick={() => void load()} disabled={loading} className="px-4 py-2 text-sm">Refresh records</LiquidButton>
-        <Link href="/demo/?new=1">Create another job →</Link>
-      </div>
-      {error ? <div className="error-panel" role="alert"><h2>Records could not be refreshed</h2><p>{error}</p>{/session|wallet|connect/i.test(error) ? <Link href="/settings">Connect wallet →</Link> : null}<LiquidButton type="button" onClick={() => void load()} className="px-4 py-2 text-sm">Retry</LiquidButton></div> : loading ? <p role="status" className="empty-panel">Loading persisted records…</p> : <>
-        {view === "dashboard" && <div className="workspace-stats"><article><span>Your jobs</span><strong>{rows.length}</strong></article><article><span>Verified jobs</span><strong>{rows.filter((row) => row.verification?.overall_result === "passed").length}</strong></article><article><span>Unresolved disputes</span><strong>{rows.reduce((sum, row) => sum + (Array.isArray(row.disputes) ? row.disputes.filter((item) => ["open", "under_review"].includes(item.status)).length : 0), 0)}</strong></article></div>}
-        {rows.some((row) => row.detailIssues.length > 0) && <div className="warning-panel" role="status">Some optional workflow details could not be loaded. The job list remains live; use Refresh records to retry.</div>}
-        {visible.length === 0 ? <div className="empty-panel"><h2>{filter ? "No matching jobs" : "No live jobs yet"}</h2><p>{filter ? "Clear or change the filter." : "Connect your wallet, then create or discover a job through the V2 workflow."}</p><Link href="/marketplace">Browse marketplace →</Link></div> : <div className="registry-list">{visible.map((row) => <article key={row.job.id} className="registry-row"><div><p className="eyebrow">{typeof row.job.public_id === "string" ? row.job.public_id.slice(0, 20) : String(row.job.id)}…</p><h2><LiquidButton type="button" onClick={() => { setSelected(row.job.id); window.history.replaceState(null, "", `?job=${row.job.id}`); }} className="text-left px-1 py-1" contentClassName="justify-start">{row.job.title || "Untitled job"}</LiquidButton></h2><p>{row.job.status || "Pending"} · {formatMoney(row.job.budget ?? 0, row.job.currency || "VCR")} · due {row.job.deadline ? new Date(row.job.deadline).toLocaleString() : "No deadline"}</p></div><div className="row-state">{view === "escrow" ? row.escrow?.status || "Not funded" : view === "agreements" ? row.agreement?.status || "Not proposed" : view === "verification" ? row.verification?.overall_result || "Not verified" : view === "disputes" ? (Array.isArray(row.disputes) && row.disputes[0]?.status) || "No dispute" : row.execution?.execution_status || "Not started"}<Link href={`/marketplace`}>Open marketplace →</Link></div></article>)}</div>}
-        {selected && !detail && <p className="error-panel">That job is not available in the current view.</p>}
-        {detail && <JobRecord row={detail} view={view} />}
-      </>}
-    </Workspace>
-  );
+export default function WorkflowRegistry({view}:{view:View}) {
+ const [rows,setRows]=useState<Row[]>([]);
+ const [metrics,setMetrics]=useState<ApiDashboardMetrics|null>(null);
+ const [filter,setFilter]=useState("");
+ const [selected,setSelected]=useState<string|number|null>(null);
+ const [error,setError]=useState("");
+ const [loading,setLoading]=useState(true);
+ const [reload,setReload]=useState(0);
+ const load=useCallback(async()=>{
+  setLoading(true);setError("");
+  try {
+   const jobsPromise=api.listJobs({skip:0,limit:100,sort:"newest"});
+   const metricsPromise=api.getDashboardMetrics().catch(()=>null);
+   const [jobs,summary]=await Promise.all([jobsPromise,metricsPromise]);
+   setMetrics(summary);
+   const records=await Promise.all(jobs.items.map(async(job):Promise<Row>=>{
+    const details=await Promise.allSettled([api.getAgreementForJob(job.id),api.getEscrowForJob(job.id),api.getJobEvents(job.id)]);
+    const pick=<T,>(index:number):T|null=>details[index].status==="fulfilled"?(details[index] as PromiseFulfilledResult<T>).value:null;
+    return {job,agreement:pick<ApiAgreement>(0),escrow:pick<ApiEscrow>(1),events:pick<ApiJobEvent[]>(2)??[],issues:details.flatMap((item,i)=>item.status==="rejected"?[["agreement","escrow","audit"][i]]:[])};
+   }));
+   setRows(records);
+   const query=new URLSearchParams(window.location.search).get("job");
+   if(query)setSelected(query);
+  } catch(e) {setError(e instanceof Error?e.message:"Unable to load records from the V2 API.");setRows([]);}
+  finally {setLoading(false);}
+ },[]);
+ useEffect(()=>{void load();},[load,reload]);
+ const visible=useMemo(()=>rows.filter(({job})=>[job.title,job.public_id,job.status].join(" ").toLowerCase().includes(filter.toLowerCase())),[rows,filter]);
+ const detail=rows.find((r)=>String(r.job.id)===String(selected));
+ if(["execution","verification","disputes","risk"].includes(view)) return <Workspace title={titles[view][0]} intro={titles[view][1]}><section className="record-panel"><div className="warning-panel" role="status"><strong>Not available yet.</strong><p>This section is intentionally read-only/disabled. No simulated success, placeholder records, or unsupported API calls are used.</p></div><Link href="/jobs" className="primary-button mt-4 inline-block">Return to supported jobs workflow</Link></section></Workspace>;
+ return <Workspace title={titles[view][0]} intro={titles[view][1]}>
+  <div className="toolbar"><label>Filter jobs<input value={filter} onChange={e=>setFilter(e.target.value)} placeholder="Title, job ID, or status"/></label><LiquidButton type="button" onClick={()=>setReload(v=>v+1)} disabled={loading} className="px-4 py-2 text-sm">Refresh records</LiquidButton><Link href="/demo">Create a job →</Link></div>
+  {error?<div className="error-panel" role="alert"><h2>Live records unavailable</h2><p>{error}</p><p>Check wallet authentication and API availability. An API error is not treated as an empty account.</p><LiquidButton type="button" onClick={()=>setReload(v=>v+1)} className="mt-3 px-4 py-2 text-sm">Retry</LiquidButton><Link href="/settings" className="ml-4 underline">Wallet settings</Link></div>:loading?<p role="status" className="empty-panel">Loading persisted records…</p>:<>
+   {view==="dashboard"&&<div className="workspace-stats"><article><span>Total jobs</span><strong>{metrics?.total_jobs??rows.length}</strong></article><article><span>Jobs in progress</span><strong>{metrics?.jobs_in_progress??"—"}</strong></article><article><span>Completed jobs</span><strong>{metrics?.completed_jobs??"—"}</strong></article><article><span>Open disputes</span><strong>{metrics?.open_disputes??"—"}</strong></article><article><span>Simulated escrow funded</span><strong>{metrics?formatMoney(metrics.total_simulated_escrow_funded):"—"}</strong></article><article><span>Simulated escrow settled</span><strong>{metrics?formatMoney(metrics.total_simulated_escrow_settled):"—"}</strong></article></div>}
+   {rows.some(r=>r.issues.length>0)&&<div className="warning-panel" role="status">Some job details could not be loaded: {Array.from(new Set(rows.flatMap(r=>r.issues))).join(", ")}. Failed detail requests are not shown as confirmed empty records.</div>}
+   {visible.length===0?<div className="empty-panel"><h2>{filter?"No matching jobs":"No jobs returned by the backend"}</h2><p>{filter?"Try another search.":"Create a job after connecting a wallet. This view does not insert sample records."}</p><Link href="/demo">Start supported workflow →</Link></div>:<div className="registry-list">{visible.map(row=><article key={row.job.id} className="registry-row"><div><p className="eyebrow">{row.job.public_id||`Job #${row.job.id}`}</p><h2><button type="button" onClick={()=>{setSelected(row.job.id);window.history.replaceState(null,"",`?job=${row.job.id}`);}} className="text-left underline-offset-4 hover:underline">{row.job.title}</button></h2><p>{row.job.status} · {formatMoney(row.job.budget??row.job.budget_amount??0,row.job.currency||"USD")} · due {row.job.deadline?new Date(row.job.deadline).toLocaleString():"Not specified"}</p></div><div className="row-state">{view==="escrow"?row.escrow?.status??"No escrow":view==="agreements"?row.agreement?.status??"No agreement":view==="history"?`${row.events.length} audit events`:row.job.status}<button type="button" onClick={()=>setSelected(row.job.id)} className="mt-2 block underline">View record</button></div></article>)}</div>}
+   {selected&&!detail&&<p className="error-panel">That job is not present in the currently loaded backend records.</p>}
+   {detail&&<JobRecord row={detail} view={view}/>}
+  </>}
+ </Workspace>;
 }
 
-function JobRecord({ row, view }: { row: Row; view: View }) {
-  const { job, agreement, escrow, verification, disputes, events, execution } = row;
-  const safeSkills = Array.isArray(job?.required_skills) ? job.required_skills : [];
-  const safeAcceptanceCriteria = Array.isArray(job?.acceptance_criteria) ? job.acceptance_criteria : [];
-  const safeLedgerEntries = Array.isArray(escrow?.ledger_entries) ? escrow.ledger_entries : [];
-  const safeChecks = Array.isArray(verification?.individual_checks) ? verification.individual_checks : [];
-  const safeDisputes = Array.isArray(disputes) ? disputes : [];
-  const safeEvents = Array.isArray(events) ? events : [];
-
-  return <section className="record-panel"><h2>{job.title || "Untitled job"}: {titles[view][0]}</h2><p>{job.description || "No description available."}</p>
-    <h3>Requirements</h3><p>Skills: {safeSkills.join(", ") || "None specified"}</p><p>Deliverable: {job.expected_output || "Not specified"}</p><ul>{safeAcceptanceCriteria.length ? safeAcceptanceCriteria.map((criterion, index) => <li key={index}>{criterion}</li>) : <li>No acceptance criteria were provided.</li>}</ul>
-    {["jobs", "agreements", "dashboard"].includes(view) && <><h3>Agreement {agreement ? `v${agreement.proposal_version} · ${agreement.status}` : "not yet proposed"}</h3>{agreement && <><p>Accepted version: {agreement.accepted_version || "Not accepted"} · {formatMoney(agreement.amount, agreement.currency)}</p><p>{String((agreement.terms && typeof agreement.terms === "object" ? agreement.terms.scope : "") || "")}</p><details><summary>Full terms and revision history</summary><pre>{JSON.stringify({ terms: agreement.terms, history: agreement.proposal_history }, null, 2)}</pre></details></>}</>}
-    {["jobs", "escrow", "dashboard"].includes(view) && <><h3>Simulated ledger</h3>{escrow ? <><p>Escrow #{escrow.id} · {escrow.status} · accepted {formatMoney(escrow.accepted_amount, escrow.currency)}</p><div className="table-scroll"><table><thead><tr><th>Entry</th><th>Amount</th><th>Recorded</th><th>Reference</th></tr></thead><tbody>{safeLedgerEntries.length ? safeLedgerEntries.map((entry) => <tr key={entry.id}><td>{entry.entry_type}</td><td>{formatMoney(entry.amount, entry.currency)}</td><td>{new Date(entry.occurred_at).toLocaleString()}</td><td>{entry.reference || "—"}</td></tr>) : <tr><td colSpan={4}>No ledger entries have been recorded yet.</td></tr>}</tbody></table></div></> : <p>Not funded. Accept an agreement first.</p>}</>}
-    {["jobs", "verification", "execution", "risk"].includes(view) && <><h3>Execution eligibility</h3><p>{execution?.execution_status || "Unavailable"}</p><p>{execution?.start_reason || "Execution details are unavailable."}</p><p>{execution?.submit_reason || ""}</p><p>{execution?.verify_reason || ""}</p><h3>Verification: {verification?.overall_result || "not run"}</h3>{verification && <>{verification.overall_result !== "passed" && <p className="error-panel">Normal settlement remains blocked.</p>}<ul>{safeChecks.length ? safeChecks.map((check, index) => <li key={index}><strong>{String(check.status)}: {String(check.name)}</strong> — {String(check.explanation)}</li>) : <li>No verification checks were returned for this job.</li>}</ul></>}</>}
-    {["jobs", "disputes"].includes(view) && <><h3>Disputes</h3>{safeDisputes.length ? safeDisputes.map((dispute) => <article key={dispute.id}><h4>#{dispute.id} · {dispute.status}</h4><p>{dispute.reason}</p><p>{dispute.description}</p><p>Resolution: {dispute.resolution || "Pending"} · {dispute.resolution_rationale}</p><details><summary>Stored evidence and frozen agreement</summary><pre>{JSON.stringify({ evidence: dispute.evidence, terms: dispute.agreement_terms }, null, 2)}</pre></details></article>) : <p>No dispute has been opened.</p>}</>}
-    <h3>Persisted timeline</h3><ol className="record-timeline">{safeEvents.length ? safeEvents.map((event) => <li key={event.id}><strong>{event.event_type.replaceAll(".", " ").replaceAll("_", " ")}</strong><time>{new Date(event.created_at).toLocaleString()}</time><details><summary>Event details</summary><pre>{JSON.stringify(event.data, null, 2)}</pre></details></li>) : <li>No audit events have been recorded yet.</li>}</ol>
-  </section>;
+function JobRecord({row,view}:{row:Row;view:View}) {
+ const {job,agreement,escrow,events}=row;
+ return <section className="record-panel"><h2>{job.title}</h2><p>{job.description}</p><h3>Job requirements</h3><p>Category: {job.task_category||job.category||"Not specified"}</p><p>Skills: {(job.required_skills??[]).join(", ")||"None specified"}</p><p>Expected output: {job.expected_output||"Not specified"}</p><ul>{(job.acceptance_criteria??[]).map((item,i)=><li key={i}>{item}</li>)}</ul>
+  {["jobs","agreements","dashboard"].includes(view)&&<><h3>Agreement</h3>{agreement?<><p>#{agreement.id} · {agreement.status} · proposal v{agreement.proposal_version} · {formatMoney(agreement.proposed_budget??agreement.amount,agreement.currency)}</p><p>Accepted version: {agreement.accepted_version??"Not accepted"}</p><pre>{JSON.stringify(agreement.terms,null,2)}</pre><details><summary>Proposal history</summary><pre>{JSON.stringify(agreement.proposal_history,null,2)}</pre></details></>:<p>No agreement has been returned for this job.</p>}</>}
+  {["jobs","escrow","dashboard"].includes(view)&&<><h3>Simulated escrow</h3>{escrow?<><p>Escrow #{escrow.id} · {escrow.status} · {formatMoney(escrow.accepted_amount,escrow.accepted_currency)}</p><div className="table-scroll"><table><thead><tr><th>Entry</th><th>Amount</th><th>Currency</th><th>Recorded</th><th>Reference</th></tr></thead><tbody>{(escrow.ledger_entries??[]).map(entry=><tr key={entry.id}><td>{entry.entry_type}</td><td>{entry.amount}</td><td>{entry.currency}</td><td>{new Date(entry.occurred_at).toLocaleString()}</td><td>{entry.reference||"—"}</td></tr>)}</tbody></table></div></>:<p>No escrow record has been returned for this job. Funding is available only after agreement acceptance.</p>}</>}
+  {["jobs","history","dashboard"].includes(view)&&<><h3>Persisted audit timeline</h3>{events.length?<ol className="record-timeline">{events.map(event=><li key={event.id}><strong>{event.event_type.replaceAll("."," ").replaceAll("_"," ")}</strong><time>{new Date(event.created_at).toLocaleString()}</time><p>{event.description}</p><details><summary>Event data</summary><pre>{JSON.stringify(event.data,null,2)}</pre></details></li>)}</ol>:<p>No audit events have been returned.</p>}</>}
+ </section>;
 }
