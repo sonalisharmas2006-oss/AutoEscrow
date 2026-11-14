@@ -144,6 +144,8 @@ export interface ApiAgreement {
   updated_at: string;
   terms?: Record<string, unknown>;
   terms_hash?: string | null;
+  proposed_budget?: string | null;
+  proposed_deadline?: string | null;
   amount?: string;
   currency?: string;
   proposal_version?: number;
@@ -836,10 +838,6 @@ export const autoEscrowApi = {
 
   getMatches(_jobId: number | string) {
     return Promise.reject(new AutoEscrowApiError(501, "The backend exposes matching as a POST computation; rerun matching to refresh results."));
-  },
-
-  selectAgent(_jobId: number | string, _agentId: number | string, _runId?: string) {
-    return Promise.reject(new AutoEscrowApiError(501, "Agent selection is recorded when an agreement is created for a matching agent."));
   },
 
   async getEscrowForJob(jobId: number | string) {
