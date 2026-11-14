@@ -295,6 +295,7 @@ export interface ApiJobCreateRequest {
 export interface ApiAgreementCreateRequest {
   terms?: Record<string, unknown>; rationale?: string; currency?: string;
   proposed_budget?: string; proposed_deadline?: string | null;
+  job_id?: string | number; agent_id?: string | number;
 }
 
 export interface ApiSubmissionCreateRequest {
