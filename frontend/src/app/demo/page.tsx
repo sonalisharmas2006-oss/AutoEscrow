@@ -145,6 +145,9 @@ export default function GuidedWorkflowPage() {
     await run(async () => {
       const existingEscrow = await api.getEscrowForAgreement(agreement.id);
       const createdEscrow = existingEscrow ?? await api.createEscrow(agreement.id);
+      if (String(authState.getUser()?.id) !== String(createdEscrow.buyer_user_id)) {
+        throw new Error("Only the escrow buyer can fund this agreement.");
+      }
       const alreadyFunded = ["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase());
       const fundedEscrow = alreadyFunded ? createdEscrow : await api.fundEscrow(createdEscrow.id, {
         idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
@@ -243,7 +246,7 @@ export default function GuidedWorkflowPage() {
             <TextArea label="Expected deliverables (one per line)" value={form.deliverables} onChange={(deliverables) => setForm({ ...form, deliverables })} rows={2} />
             <TextArea label="Acceptance conditions (one per line)" value={form.criteria} onChange={(criteria) => setForm({ ...form, criteria })} rows={3} />
             <TextArea label="Responsibilities (one per line)" value={form.responsibilities} onChange={(responsibilities) => setForm({ ...form, responsibilities })} rows={2} />
-            <Action onClick={() => void createJob()} disabled={busy || !authenticated || form.title.trim().length < 3 || !form.description.trim() || splitTags(form.skills).length === 0 || splitTags(form.capabilities).length === 0 || splitLines(form.deliverables).length === 0 || splitLines(form.criteria).length === 0 || splitLines(form.responsibilities).length === 0 || !form.deadline}>
+            <Action onClick={() => void createJob()} disabled={busy || !authenticated || form.title.trim().length < 3 || !form.description.trim() || splitTags(form.skills).length === 0 || splitTags(form.capabilities).length === 0 || splitLines(form.deliverables).length === 0 || splitLines(form.criteria).length === 0 || splitLines(form.responsibilities).length === 0 || !Number.isFinite(Number(form.budget)) || Number(form.budget) <= 0 || !form.deadline || new Date(form.deadline).getTime() <= Date.now()}>
               Create job and continue <ArrowRight size={16} />
             </Action>
           </section>
