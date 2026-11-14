@@ -296,10 +296,22 @@ export default function GuidedWorkflowPage() {
                         })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
                       </div>
                     </div>}
-                    {item.status==="rejected" && <Action onClick={() => void run(async () => {
-                      const dispute=await api.createSubmissionDispute(item.id,{reason:disputeReason||"Buyer rejected submission",description:disputeDescription||reviewNote||"Submission review dispute"});
-                      setNotice("Dispute #"+dispute.id+" created.");
-                    })} disabled={busy}>Raise dispute</Action>}
+                    {item.status==="accepted" && escrow.status!=="released" && <Action onClick={() => void run(async () => {
+                      const released=await api.releaseEscrow(escrow.id,"autoescrow-"+job?.id+"-"+escrow.id+"-release-v1");
+                      setEscrow(released);
+                      setNotice("Agent-side simulated escrow release recorded by the backend.");
+                    })} disabled={busy}>Release to agent</Action>}
+                    {item.status==="rejected" && <>
+                      <Action onClick={() => void run(async () => {
+                        const refunded=await api.refundEscrow(escrow.id,"autoescrow-"+job?.id+"-"+escrow.id+"-refund-v1");
+                        setEscrow(refunded);
+                        setNotice("Buyer refund recorded by the backend.");
+                      })} disabled={busy}>Refund buyer</Action>
+                      <Action onClick={() => void run(async () => {
+                        const dispute=await api.createSubmissionDispute(item.id,{reason:disputeReason||"Buyer rejected submission",description:disputeDescription||reviewNote||"Submission review dispute"});
+                        setNotice("Dispute #"+dispute.id+" created.");
+                      })} disabled={busy}>Raise dispute</Action>
+                    </>}
                   </article>)}
                 </div>
               </section>
