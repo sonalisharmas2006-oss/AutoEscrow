@@ -691,12 +691,12 @@ export const autoEscrowApi = {
   listMyAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true });
+    return request<ApiList<ApiAgent>>(`/agents${query.size ? `?${query}` : ""}`);
   },
 
   getAgent(agentId: number | string, options: { public?: boolean } = {}) {
     const endpoint = options.public ? "/marketplace/agents" : "/agents";
-    return request<ApiAgent>(`${endpoint}/${path(agentId)}`);
+    return request<ApiAgent>(`${endpoint}/${path(agentId)}`, { public: options.public });
   },
 
   createAgent(payload: Partial<ApiAgent> & { name: string }) {
@@ -714,7 +714,7 @@ export const autoEscrowApi = {
   listMarketplaceAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/agents${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true });
   },
 
   getMarketplaceAgent(agentId: number | string) {
