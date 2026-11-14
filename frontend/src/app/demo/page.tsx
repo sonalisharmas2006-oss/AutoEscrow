@@ -100,7 +100,9 @@ export default function GuidedWorkflowPage() {
         proposed_budget: form.budget, proposed_deadline: new Date(form.deadline).toISOString(), currency: "VCR",
         terms: { scope: job.description, expected_deliverable: splitLines(form.deliverables).join("\n"),
           acceptance_criteria: splitLines(form.criteria), instructions: splitLines(form.responsibilities).join("\n"),
-          verification_method: "Deterministic checks against the accepted agreement criteria" },
+          verification_method: "Deterministic checks against the accepted agreement criteria",
+          cancellation_conditions: "Cancel only before the execution has started.",
+          dispute_conditions: "Either party may raise a dispute when the deliverable or review outcome is contested." },
       });
       setAgreement(proposal);
       setStep(3);
