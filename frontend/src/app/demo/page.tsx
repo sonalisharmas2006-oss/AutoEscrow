@@ -142,33 +142,54 @@ export default function GuidedWorkflowPage() {
       return;
     }
     if (!window.confirm("Create and fund this simulated VCR escrow? No real money will move.")) return;
+
     await run(async () => {
       const existingEscrow = await api.getEscrowForAgreement(agreement.id);
-      const createdEscrow = existingEscrow ?? await api.createEscrow(agreement.id);
-      if (String(authState.getUser()?.id) !== String(createdEscrow.buyer_user_id)) {
+      const escrowToFund = existingEscrow ?? await api.createEscrow(agreement.id);
+
+      if (String(authState.getUser()?.id) !== String(escrowToFund.buyer_user_id)) {
         throw new Error("Only the escrow buyer can fund this agreement.");
       }
-      const alreadyFunded = ["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase());
-      const fundedEscrow = alreadyFunded ? createdEscrow : await api.fundEscrow(createdEscrow.id, {
-        idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
-      });
-      const listed = await api.listEscrows({ limit: 100, offset: 0 });
-      const persistedEscrow = listed.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? await api.getEscrow(fundedEscrow.id);
-      setEscrow(persistedEscrow);
-      const [latestJob, latestAgreement, latestSubmissions] = await Promise.all([
-        api.getJob(job.id),
-        api.getAgreementForJob(job.id),
-        api.getEscrowSubmissions(persistedEscrow.id),
-      ]);
-      setJob(latestJob);
-      if (latestAgreement) setAgreement(latestAgreement);
-      setSubmissions(latestSubmissions);
-      if (["funded", "held", "active"].includes(String(persistedEscrow.status).toLowerCase())) {
-        setStep(5);
-        setNotice("The backend confirms the simulated VCR escrow is funded. No real funds moved.");
-      } else {
+
+      const fundedStatuses = ["funded", "held", "active"];
+      const currentStatus = String(escrowToFund.status).toLowerCase();
+      let fundingResult = fundedStatuses.includes(currentStatus)
+        ? escrowToFund
+        : await api.fundEscrow(escrowToFund.id, {
+            idempotency_key: `autoescrow:escrow:${escrowToFund.id}:fund:v1`,
+          });
+
+      // The fund response is the first source of truth. Only make a detail GET
+      // when its status is not yet conclusive; never let unrelated list/job/
+      // agreement refreshes prevent the workflow from advancing.
+      if (!fundedStatuses.includes(String(fundingResult.status).toLowerCase())) {
+        try {
+          fundingResult = await api.getEscrow(fundingResult.id);
+        } catch {
+          // Preserve the mutation response below and report its unconfirmed state.
+        }
+      }
+
+      const fundingConfirmed = fundedStatuses.includes(String(fundingResult.status).toLowerCase());
+      setEscrow(fundingResult);
+
+      if (!fundingConfirmed) {
         setStep(4);
-        setNotice(`Escrow was created, but its current backend status is ${persistedEscrow.status}. The workflow has not marked funding complete.`);
+        setNotice(`The backend has not confirmed escrow funding yet (status: ${fundingResult.status}). Use Refresh backend record to check again; the workflow has not marked funding complete.`);
+        return;
+      }
+
+      // Advance immediately after backend-confirmed funding. Loading optional
+      // submission history must not block access to the execution step.
+      setStep(5);
+      setNotice("The backend confirms the simulated VCR escrow is funded. No real funds moved.");
+
+      try {
+        const latestSubmissions = await api.getEscrowSubmissions(fundingResult.id);
+        setSubmissions(latestSubmissions);
+        if (latestSubmissions.length > 0) setStep(6);
+      } catch {
+        setNotice("Escrow funding is confirmed. Submission history could not be refreshed, but you can continue to the demo execution step.");
       }
     });
   }
