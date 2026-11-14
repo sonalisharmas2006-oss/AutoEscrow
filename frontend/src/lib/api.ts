@@ -91,80 +91,88 @@ export interface ApiJob {
   requirements: Record<string, unknown>;
 }
 
+export interface ApiMatchReason {
+  component: string;
+  score: number;
+  weight: number;
+  contribution: number;
+  explanation: string;
+}
+
 export interface ApiMatchCandidate {
   agent_id: string | number;
   agent_name: string;
-  score: string | number;
-  matched_skills: string[];
-  missing_skills: string[];
-  breakdown: Record<string, unknown>;
+  agent: ApiAgent;
+  score: number;
+  reasons: ApiMatchReason[];
   explanation: string;
-  warnings: string[];
-  eligible: boolean;
-  exclusion_reasons: string[];
 }
 
 export interface ApiMatchRun {
   matches: ApiMatchCandidate[];
-  run_id: string;
-  scoring_version: string;
-  computed_at: string;
-  candidates: ApiMatchCandidate[];
-  excluded_agents: ApiMatchCandidate[];
-  job_id: string | number;
+  weights: Record<string, number>;
+  run_id?: string;
+  scoring_version?: string;
+  computed_at?: string;
+  candidates?: ApiMatchCandidate[];
+  excluded_agents?: ApiMatchCandidate[];
+  job_id?: string | number;
+}
+
+export interface ApiAgreementVersion {
+  id: string;
+  version_number: number;
+  terms: ApiAgreementTerms;
+  terms_hash: string;
+  created_by_user_id: string;
+  created_at: string;
+}
+
+export interface ApiAgreementAcceptance {
+  id: string;
+  version_number: number;
+  user_id: string;
+  party: string;
+  accepted_at: string;
 }
 
 export interface ApiAgreement {
-  id: string | number;
-  job_id: string | number;
-  requester_agent_id?: number;
-  executor_agent_id?: number;
-  agent_id?: string | number;
-  proposed_budget?: string | number | null;
-  proposed_deadline?: string | null;
+  id: string;
+  job_id: string;
+  agent_id: string;
+  owner_user_id: string;
+  agent_owner_user_id: string;
   status: string;
-  terms: Record<string, unknown>;
-  terms_hash: string | null;
-  version_number: number;
-  current_version: number;
-  accepted_by_buyer: boolean;
-  accepted_by_agent: boolean;
+  current_version_number: number;
+  current_version: ApiAgreementVersion;
+  versions: ApiAgreementVersion[];
+  acceptances: ApiAgreementAcceptance[];
   created_at: string;
   updated_at: string;
-  accepted_at: string | null;
-  expires_at: string | null;
-  currency: string;
-  amount: string;
-  pending_acceptance: boolean;
-  proposal_version: number;
-  accepted_version: number | null;
-  proposal_history: Record<string, unknown>[];
-  accepted_amount?: string;
-  accepted_currency?: string;
+  terms?: Record<string, unknown>;
+  terms_hash?: string | null;
+  amount?: string;
+  currency?: string;
+  proposal_version?: number;
+  accepted_version?: number | null;
+  accepted_at?: string | null;
+  proposal_history?: Record<string, unknown>[];
 }
 
 export interface ApiEscrow {
-  id: string | number;
-  job_id?: string | number;
-  agreement_id: string | number;
-  accepted_agreement_version?: number | null;
-  agreement_version?: number | null;
-  funded_amount?: string | null;
-  funding_state?: string;
-  provider_reference?: string | null;
-  released_at?: string | null;
-  settled_at?: string | null;
-  status: string;
+  id: string;
+  agreement_id: string;
+  buyer_user_id: string;
+  agent_owner_user_id: string;
   amount: string;
   currency: string;
-  available_amount: string;
-  escrow_locked: string;
-  funded_at: string | null;
+  status: string;
   created_at: string;
   updated_at: string;
-  accepted_amount: string;
-  accepted_currency: string;
-  ledger_entries: ApiLedgerEntry[];
+  job_id?: string | number;
+  accepted_amount?: string;
+  accepted_currency?: string;
+  ledger_entries?: ApiLedgerEntry[];
   reference?: string | null;
 }
 
@@ -179,6 +187,29 @@ export interface ApiLedgerEntry {
   reference?: string | null;
   idempotency_key?: string | null;
   balance_after?: Record<string, unknown>;
+}
+
+export interface ApiLedgerBalance {
+  currency: string;
+  label: string;
+  available: string;
+  escrow_locked: string;
+}
+
+export interface ApiLedgerTransaction {
+  id: string;
+  kind: string;
+  amount: string;
+  currency: string;
+  description: string;
+  created_at: string;
+}
+
+export interface ApiLedgerHistory {
+  items: ApiLedgerTransaction[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 export interface ApiSubmission {
@@ -753,24 +784,28 @@ export const autoEscrowApi = {
     return Promise.reject(new AutoEscrowApiError(501, "V2 matching requires an existing job. Create a job before requesting matches."));
   },
 
-  matchJobAgents(jobId: number | string, payload: Record<string, unknown> = {}) {
-    void payload;
-    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
+  matchJobAgents(jobId: number | string) {
+    return request<{ matches: Array<{ agent: ApiAgent; score: number; reasons: ApiMatchReason[] }>; weights: Record<string, number> }>(`/matching/jobs/${path(jobId)}`, { method: "POST" }).then((response): ApiMatchRun => ({
+      weights: response.weights,
+      matches: response.matches.map(({ agent, score, reasons }) => ({
+        agent_id: agent.id,
+        agent_name: agent.name,
+        agent,
+        score,
+        reasons,
+        explanation: reasons.map((reason) => reason.explanation).join(" "),
+      })),
+    }));
   },
 
-  createAgreement(...args: [ApiAgreementCreateRequest] | [number | string, ApiAgreementCreateRequest | Record<string, unknown>] | [Record<string, unknown>]) {
-    const [first, second] = args;
-    const payload = (second ?? first) as ApiAgreementCreateRequest;
-    const jobId = typeof first === "number" || typeof first === "string" ? first : payload.job_id;
-    if (jobId === undefined) {
-      return Promise.reject(new AutoEscrowApiError(400, "A job id is required to create an agreement."));
-    }
-    const { job_id: _jobId, ...body } = payload;
-    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body });
+  createAgreement(payload: ApiAgreementCreateRequest) {
+    return request<ApiAgreement>("/agreements", { method: "POST", body: payload });
   },
 
-  listAgreements() {
-    return Promise.reject(new AutoEscrowApiError(501, "V2 agreements are retrieved by job. Open a job to view its agreement."));
+  listAgreements(params: Record<string, string | number | undefined> = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
+    return request<ApiList<ApiAgreement>>(`/agreements${query.size ? `?${query}` : ""}`);
   },
 
   getAgreement(agreementId: number | string) {
@@ -792,20 +827,22 @@ export const autoEscrowApi = {
     return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: payload as Record<string, unknown> });
   },
 
-  createEscrow(_payload: { agreement_id: string | number }) {
-    return Promise.reject(new AutoEscrowApiError(501, "V2 escrow is created by funding an accepted job agreement."));
+  createEscrow(agreementId: string | number) {
+    return request<ApiEscrow>("/escrows", { method: "POST", body: { agreement_id: agreementId } });
   },
 
-  listEscrows() {
-    return Promise.reject(new AutoEscrowApiError(501, "V2 escrows are retrieved by job or escrow id."));
+  listEscrows(params: Record<string, string | number | undefined> = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
+    return request<ApiList<ApiEscrow>>(`/escrows${query.size ? `?${query}` : ""}`);
   },
 
   getEscrow(escrowId: number | string) {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}`);
   },
 
-  fundEscrow(jobId: number | string, payload: { idempotency_key?: string; reference?: string } = {}) {
-    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
+  fundEscrow(escrowId: number | string, payload: { idempotency_key: string }) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/fund`, { method: "POST", body: payload });
   },
 
   releaseEscrow(escrowId: number | string, payload: { idempotency_key?: string } = {}) {
@@ -817,26 +854,27 @@ export const autoEscrowApi = {
   },
 
   computeMatches(jobId: number | string) {
-    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
+    return autoEscrowApi.matchJobAgents(jobId);
   },
 
-  getMatches(jobId: number | string) {
-    return request<ApiMatchRun | null>(`/jobs/${path(jobId)}/matches`);
+  getMatches(_jobId: number | string) {
+    return Promise.reject(new AutoEscrowApiError(501, "The backend exposes matching as a POST computation; rerun matching to refresh results."));
   },
 
-  selectAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return request<ApiJob>(`/jobs/${path(jobId)}/matches/${path(agentId)}/select`, {
-      method: "POST",
-      body: runId ? { run_id: runId } : {},
-    });
+  selectAgent(_jobId: number | string, _agentId: number | string, _runId?: string) {
+    return Promise.reject(new AutoEscrowApiError(501, "Agent selection is recorded when an agreement is created for a matching agent."));
   },
 
-  getAgreementForJob(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiAgreement | null>(`/jobs/${path(jobId)}/agreement`);
+  async getAgreementForJob(jobId: number | string) {
+    const response = await autoEscrowApi.listAgreements({ limit: 100, offset: 0 });
+    return response.items.find((item) => String(item.job_id) === String(jobId)) ?? null;
   },
 
-  getEscrowForJob(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiEscrow | null>(`/jobs/${path(jobId)}/escrow`);
+  async getEscrowForJob(jobId: number | string) {
+    const agreement = await autoEscrowApi.getAgreementForJob(jobId);
+    if (!agreement) return null;
+    const response = await autoEscrowApi.listEscrows({ limit: 100, offset: 0 });
+    return response.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? null;
   },
 
   getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
@@ -860,11 +898,13 @@ export const autoEscrowApi = {
   },
 
   getLedgerBalance() {
-    return Promise.reject(new AutoEscrowApiError(501, "The V2 API does not expose a personal ledger balance endpoint."));
+    return request<ApiLedgerBalance>("/ledger/me");
   },
 
-  getLedgerTransactions() {
-    return Promise.reject(new AutoEscrowApiError(501, "The V2 API does not expose personal ledger transactions."));
+  getLedgerTransactions(params: Record<string, string | number | undefined> = {}) {
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
+    return request<ApiLedgerHistory>(`/ledger/me/transactions${query.size ? `?${query}` : ""}`);
   },
 
   listSessions() {

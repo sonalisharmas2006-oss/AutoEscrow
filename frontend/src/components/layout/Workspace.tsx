@@ -18,7 +18,7 @@ export default function Workspace({ title, intro, children }: { title: string; i
           </div>
           <Link className="primary-button" href="/marketplace/">Open live marketplace →</Link>
         </header>
-        <p className="demo-disclaimer">V2 scoped demo session · simulated ledger only · no real funds or independent arbitration.</p>
+        <p className="demo-disclaimer">SIWE wallet authentication · simulated VCR ledger only · no real funds or independent arbitration.</p>
         {children}
       </div>
     </main>

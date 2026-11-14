@@ -4,49 +4,294 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiJobEvent, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
-const steps=["Define job","Match agents","Select agent","Accept agreement","Fund simulated escrow"];
-const futureDate=()=>new Date(Date.now()+7*86400000).toISOString().slice(0,16);
-export default function GuidedWorkflowPage(){
- const [step,setStep]=useState(0);
- const [job,setJob]=useState<ApiJob|null>(null);
- const [matches,setMatches]=useState<ApiMatchRun|null>(null);
- const [selected,setSelected]=useState<ApiMatchCandidate|null>(null);
- const [agreement,setAgreement]=useState<ApiAgreement|null>(null);
- const [escrow,setEscrow]=useState<ApiEscrow|null>(null);
- const [events,setEvents]=useState<ApiJobEvent[]>([]);
- const [form,setForm]=useState({title:"",description:"",category:"general",skills:"",output:"",criteria:"",budget:"25.00",currency:"USD",deadline:futureDate()});
- const [busy,setBusy]=useState(false);
- const [error,setError]=useState("");
- const [notice,setNotice]=useState("");
- const [authenticated,setAuthenticated]=useState(false);
- useEffect(()=>{setAuthenticated(Boolean(authState.getDemoSessionToken()));},[]);
- const available=useMemo(()=>matches?.candidates??matches?.matches??[],[matches]);
- async function run(action:()=>Promise<void>){setBusy(true);setError("");setNotice("");try{await action();}catch(e){setError(e instanceof Error?e.message:"The API request failed. No local success state was recorded.");}finally{setBusy(false);}}
- async function createJob(){if(!authenticated){setError("Start a backend demo session in Settings before creating a job.");return;}await run(async()=>{const created=await api.createJob({title:form.title.trim(),description:form.description.trim(),task_category:form.category.trim(),required_skills:form.skills.split(",").map(x=>x.trim()).filter(Boolean),expected_output:form.output.trim(),acceptance_criteria:form.criteria.split("\n").map(x=>x.trim()).filter(Boolean),budget:form.budget,currency:form.currency,deadline:new Date(form.deadline).toISOString(),additional_instructions:"Created from the supported AutoEscrow V2 frontend workflow."});setJob(created);setStep(1);setNotice("Job saved by the backend.");});}
- async function computeMatches(){if(!job)return;await run(async()=>{const result=await api.computeMatches(job.id);setMatches(result);setStep(2);setNotice("Matching results loaded from the backend.");});}
- async function chooseAgent(){if(!job||!selected)return;await run(async()=>{const updated=await api.selectAgent(job.id,selected.agent_id,matches?.run_id);setJob(updated);const proposal=await api.createAgreement(job.id,{proposed_budget:form.budget,proposed_deadline:new Date(form.deadline).toISOString(),currency:form.currency,terms:{scope:job.description,expected_deliverable:form.output,acceptance_criteria:form.criteria.split("\n").map(x=>x.trim()).filter(Boolean),verification_method:"Verification is not enabled in this release; the criteria are recorded as agreement terms.",cancellation_conditions:"Subject to the accepted agreement and backend job state.",dispute_conditions:"Dispute handling is not enabled in this frontend release."},rationale:"Proposal created through the AutoEscrow V2 workflow."});setAgreement(proposal);setStep(3);setNotice("Agent selection and agreement proposal persisted.");});}
- async function accept(){if(!agreement)return;await run(async()=>{const accepted=await api.acceptAgreement(agreement.id,{});setAgreement(accepted);setStep(4);setNotice("Agreement acceptance recorded by the backend.");});}
- async function fund(){if(!job||!agreement)return;await run(async()=>{const funded=await api.fundEscrow(job.id,{idempotency_key:`frontend-job-${job.id}-funding-v1`,reference:"AutoEscrow V2 simulated ledger"});setEscrow(funded);const [latestJob,latestAgreement,latestEscrow,latestEvents]=await Promise.all([api.getJob(job.id),api.getAgreementForJob(job.id),api.getEscrowForJob(job.id),api.getJobEvents(job.id)]);setJob(latestJob);setAgreement(latestAgreement);setEscrow(latestEscrow);setEvents(latestEvents);setStep(5);setNotice("Simulated escrow funding was persisted. No real funds moved.");});}
- async function refresh(){if(!job)return;await run(async()=>{const [j,a,e,v]=await Promise.all([api.getJob(job.id),api.getAgreementForJob(job.id),api.getEscrowForJob(job.id),api.getJobEvents(job.id)]);setJob(j);setAgreement(a);setEscrow(e);setEvents(v);});}
- return <main className="min-h-screen bg-transparent px-5 pb-32 pt-14 text-white sm:px-8"><div className="mx-auto max-w-6xl">
-  <header className="mb-8"><p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Supported V2 workflow · M0–M3</p><h1 className="mt-3 text-4xl font-bold">Guided Job Setup</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">Create a real backend job, inspect explainable agent matches, select an eligible agent, accept versioned terms, and record simulated escrow funding. Agent execution, verification and dispute resolution are intentionally out of scope here.</p></header>
-  <div className="mb-7 grid gap-2 sm:grid-cols-5">{steps.map((label,i)=><div key={label} className={`rounded-xl border p-3 text-xs ${i<step?"border-white/25 bg-white/10":i===step?"border-white/35 bg-white/[0.08]":"border-white/10 bg-white/[0.025]"}`}><p className="text-neutral-500">STEP 0{i+1}</p><p className="mt-1 font-semibold text-white">{label}</p>{i<step&&<CheckCircle2 size={14} className="mt-2"/>}</div>)}</div>
-  {!authenticated&&<section className="mb-5 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"><div className="flex items-center gap-2 font-semibold"><LockKeyhole size={16}/> Demo session required</div><p className="mt-2">Start a short-lived backend-issued demo session before creating or changing job records. No wallet signature is required for this release.</p><Link href="/settings" className="mt-3 inline-block underline">Open session settings →</Link></section>}
-  {error&&<div role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/[0.06] p-4 text-sm text-red-200">{error}</div>}
-  {notice&&<div role="status" className="mb-5 rounded-xl border border-white/15 bg-white/[0.05] p-4 text-sm text-neutral-200">{notice}</div>}
-  {step===0&&<section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-7"><h2 className="text-xl font-semibold">Define your job</h2><p className="mt-1 text-sm text-neutral-400">Only fields supported by the V2 job contract are submitted.</p><div className="mt-5 grid gap-4 sm:grid-cols-2">
-   <Field label="Job title" value={form.title} onChange={v=>setForm({...form,title:v})}/><Field label="Task category" value={form.category} onChange={v=>setForm({...form,category:v})}/><Field label="Required skills (comma separated)" value={form.skills} onChange={v=>setForm({...form,skills:v})}/><Field label="Expected output" value={form.output} onChange={v=>setForm({...form,output:v})}/><Field label="Budget" value={form.budget} onChange={v=>setForm({...form,budget:v})} type="number"/><Field label="Currency" value={form.currency} onChange={v=>setForm({...form,currency:v.toUpperCase()})}/><Field label="Deadline" value={form.deadline} onChange={v=>setForm({...form,deadline:v})} type="datetime-local"/></div><label className="mt-4 block text-sm">Description<textarea rows={4} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 p-3 text-sm"/></label><label className="mt-4 block text-sm">Acceptance criteria <span className="text-xs text-neutral-500">(one per line)</span><textarea rows={3} value={form.criteria} onChange={e=>setForm({...form,criteria:e.target.value})} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 p-3 text-sm"/></label><Action onClick={()=>void createJob()} disabled={busy||!authenticated||!form.title.trim()||!form.description.trim()||!form.output.trim()||!form.criteria.trim()||!form.deadline}>Create job and continue <ArrowRight size={16}/></Action></section>}
-  {step>=1&&job&&<section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-7"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs uppercase tracking-widest text-neutral-500">Persisted job #{job.id}</p><h2 className="mt-2 text-2xl font-semibold">{job.title}</h2><p className="mt-2 text-sm text-neutral-400">{job.status} · {formatMoney(job.budget??job.budget_amount,job.currency)}</p></div><LiquidButton type="button" onClick={()=>void refresh()} disabled={busy} className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-xs"><RefreshCw size={14}/> Refresh backend record</LiquidButton></div>
-   {step===1&&<div className="mt-6"><h3 className="font-semibold">Find eligible agents</h3><p className="mt-1 text-sm text-neutral-400">Matching is computed and persisted by the V2 backend.</p><Action onClick={()=>void computeMatches()} disabled={busy}>Compute matches <ArrowRight size={16}/></Action></div>}
-   {step>=2&&<div className="mt-6"><h3 className="font-semibold">Matching results</h3><p className="mt-1 text-xs text-neutral-500">Run {matches?.run_id||"—"} · scoring {matches?.scoring_version||"—"}</p>{available.length===0?<p className="mt-4 rounded-xl border border-white/10 p-4 text-sm text-neutral-400">The backend returned no eligible candidates. No sample agents are inserted. Refresh the marketplace or revise the job requirements.</p>:<div className="mt-4 grid gap-3 md:grid-cols-2">{available.map(candidate=><button type="button" key={candidate.agent_id} onClick={()=>setSelected(candidate)} className={`rounded-xl border p-4 text-left ${selected?.agent_id===candidate.agent_id?"border-white/50 bg-white/10":"border-white/10 bg-black/20"}`}><div className="flex justify-between gap-3"><strong>{candidate.agent_name}</strong><span className="text-sm">{candidate.score}</span></div><p className="mt-2 text-xs text-neutral-400">Matched: {candidate.matched_skills.join(", ")||"None"}</p><p className="mt-1 text-xs text-neutral-500">{candidate.explanation}</p></button>)}</div>}{matches?.excluded_agents?.length? <details className="mt-4 text-sm"><summary className="cursor-pointer text-neutral-300">Excluded agents ({matches.excluded_agents.length})</summary><ul className="mt-2 space-y-2">{matches.excluded_agents.map(c=><li key={c.agent_id} className="text-xs text-neutral-400">{c.agent_name}: {c.exclusion_reasons.join("; ")}</li>)}</ul></details>:null}{step===2&&<Action onClick={()=>void chooseAgent()} disabled={busy||!selected}>Select agent and create agreement <ArrowRight size={16}/></Action>}</div>}
-   {step>=3&&agreement&&<div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4"><h3 className="font-semibold">Agreement #{agreement.id}</h3><p className="mt-1 text-sm text-neutral-400">Proposal v{agreement.proposal_version} · {agreement.status} · {formatMoney(agreement.proposed_budget??agreement.amount,agreement.currency)}</p><pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms,null,2)}</pre>{step===3&&<Action onClick={()=>void accept()} disabled={busy}>Accept agreement <ShieldCheck size={16}/></Action>}</div>}
-   {step>=4&&agreement&&<div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4"><h3 className="font-semibold">Accepted agreement</h3><p className="mt-1 text-sm text-neutral-400">Accepted version: {agreement.accepted_version??"Not returned"} · {agreement.accepted_at?new Date(agreement.accepted_at).toLocaleString():"Timestamp not supplied"}</p>{step===4&&<Action onClick={()=>void fund()} disabled={busy}>Record simulated escrow funding <LockKeyhole size={16}/></Action>}</div>}
-   {step===5&&<div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5"><div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18}/> M0–M3 workflow complete</div><p className="mt-2 text-sm text-neutral-300">Escrow #{escrow?.id} · {escrow?.status} · {formatMoney(escrow?.accepted_amount,escrow?.accepted_currency)}</p><p className="mt-2 text-xs text-neutral-400">This is a simulated database ledger record. No real payment, blockchain transaction, agent execution, verification, or dispute action occurred.</p><h3 className="mt-5 font-semibold">Persisted audit events</h3>{events.length?<ol className="mt-3 space-y-2">{events.map(event=><li key={event.id} className="text-xs text-neutral-400">{event.event_type} · {new Date(event.created_at).toLocaleString()}</li>)}</ol>:<p className="mt-2 text-xs text-neutral-500">No audit events returned.</p>}<Link href="/jobs" className="mt-5 inline-block underline">Open job registry →</Link></div>}
-  </section>}
-  <p className="mt-6 text-xs leading-5 text-neutral-500">M4 agent execution, verification, and dispute resolution are disabled in this release. The interface will not claim those actions have happened until supported and verified by the backend.</p>
- </div></main>;
+const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow"];
+const futureDate = () => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
+const splitLines = (value: string) => value.split("\n").map((item) => item.trim()).filter(Boolean);
+const splitTags = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
+
+export default function GuidedWorkflowPage() {
+  const [step, setStep] = useState(0);
+  const [job, setJob] = useState<ApiJob | null>(null);
+  const [matches, setMatches] = useState<ApiMatchRun | null>(null);
+  const [selected, setSelected] = useState<ApiMatchCandidate | null>(null);
+  const [agreement, setAgreement] = useState<ApiAgreement | null>(null);
+  const [escrow, setEscrow] = useState<ApiEscrow | null>(null);
+  const [form, setForm] = useState({
+    title: "",
+    description: "",
+    category: "development",
+    skills: "python, typescript",
+    capabilities: "code_review",
+    deliverables: "Code review report",
+    criteria: "Identify correctness issues\nFlag security concerns\nSuggest maintainability improvements",
+    responsibilities: "Requester provides the brief and timely feedback.\nAgent owner supplies the agreed deliverable.",
+    budget: "25.00",
+    deadline: futureDate(),
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [authenticated, setAuthenticated] = useState(false);
+  const available = useMemo(() => matches?.matches ?? [], [matches]);
+
+  useEffect(() => {
+    setAuthenticated(Boolean(authState.getAccessToken()));
+  }, []);
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      await action();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "The API request failed. No local success state was recorded.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createJob() {
+    if (!authenticated) {
+      setError("Connect your wallet in Session Settings before creating a job.");
+      return;
+    }
+    await run(async () => {
+      const created = await api.createJob({
+        title: form.title.trim(),
+        description: form.description.trim(),
+        category: form.category,
+        required_skills: splitTags(form.skills),
+        required_capabilities: splitTags(form.capabilities),
+        budget_amount: form.budget,
+        currency: "VCR",
+        deadline: new Date(form.deadline).toISOString(),
+        expected_deliverables: splitLines(form.deliverables),
+      });
+      setJob(created);
+      setStep(1);
+      setNotice("Job saved by the backend.");
+    });
+  }
+
+  async function computeMatches() {
+    if (!job) return;
+    await run(async () => {
+      const result = await api.computeMatches(job.id);
+      setMatches(result);
+      setSelected(null);
+      setStep(2);
+      setNotice("Explainable match results loaded from the backend.");
+    });
+  }
+
+  async function chooseAgent() {
+    if (!job || !selected) return;
+    await run(async () => {
+      const proposal = await api.createAgreement({
+        job_id: String(job.id),
+        agent_id: String(selected.agent_id),
+        terms: {
+          scope: job.description,
+          deliverables: splitLines(form.deliverables),
+          budget_amount: form.budget,
+          currency: "VCR",
+          deadline: new Date(form.deadline).toISOString(),
+          responsibilities: splitLines(form.responsibilities),
+          acceptance_conditions: splitLines(form.criteria),
+        },
+      });
+      setAgreement(proposal);
+      setStep(3);
+      setNotice("Versioned agreement proposal saved by the backend. Review the terms before accepting.");
+    });
+  }
+
+  async function accept() {
+    if (!agreement) return;
+    await run(async () => {
+      const accepted = await api.acceptAgreement(agreement.id, {
+        version_number: agreement.current_version_number,
+      });
+      setAgreement(accepted);
+      setStep(4);
+      setNotice("Agreement acceptance recorded by the backend.");
+    });
+  }
+
+  async function fund() {
+    if (!job || !agreement) return;
+    await run(async () => {
+      const created = await api.createEscrow(agreement.id);
+      const funded = await api.fundEscrow(created.id, {
+        idempotency_key: `autoescrow-${job.id}-${created.id}-fund-v1`,
+      });
+      setEscrow(funded);
+      const [latestJob, latestAgreement, latestEscrow] = await Promise.all([
+        api.getJob(job.id),
+        api.getAgreementForJob(job.id),
+        api.getEscrowForJob(job.id),
+      ]);
+      setJob(latestJob);
+      setAgreement(latestAgreement);
+      setEscrow(latestEscrow);
+      setStep(5);
+      setNotice("Simulated VCR escrow funding was persisted by the backend. No real funds moved.");
+    });
+  }
+
+  async function refresh() {
+    if (!job) return;
+    await run(async () => {
+      const [latestJob, latestAgreement, latestEscrow] = await Promise.all([
+        api.getJob(job.id),
+        api.getAgreementForJob(job.id),
+        api.getEscrowForJob(job.id),
+      ]);
+      setJob(latestJob);
+      setAgreement(latestAgreement);
+      setEscrow(latestEscrow);
+      if (latestEscrow) setStep(5);
+      else if (latestAgreement?.status === "active") setStep(4);
+      else if (latestAgreement) setStep(3);
+    });
+  }
+
+  return (
+    <main className="min-h-screen bg-transparent px-5 pb-32 pt-14 text-white sm:px-8">
+      <div className="mx-auto max-w-6xl">
+        <header className="mb-8">
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Supported V2 workflow · job, matching, agreement and ledger</p>
+          <h1 className="mt-3 text-4xl font-bold">Guided Job Setup</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
+            Create a backend job, compare explainable agent matches, create and accept versioned terms, then fund a simulated VCR escrow. Agent execution, verification and disputes are not exposed by the current backend contract.
+          </p>
+        </header>
+
+        <div className="mb-7 grid gap-2 sm:grid-cols-5" aria-label="Workflow progress">
+          {steps.map((label, index) => (
+            <div key={label} aria-current={index === step ? "step" : undefined} className={`rounded-xl border p-3 text-xs ${index < step ? "border-white/25 bg-white/10" : index === step ? "border-white/35 bg-white/[0.08]" : "border-white/10 bg-white/[0.025]"}`}>
+              <p className="text-neutral-500">STEP 0{index + 1}</p>
+              <p className="mt-1 font-semibold text-white">{label}</p>
+              <p className="mt-2 text-[10px] uppercase tracking-wide text-neutral-500">{index < step ? "Completed" : index === step ? "Current" : "Pending"}</p>
+              {index < step && <CheckCircle2 size={14} className="mt-2" />}
+            </div>
+          ))}
+        </div>
+
+        {!authenticated && (
+          <section className="mb-5 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100">
+            <div className="flex items-center gap-2 font-semibold"><LockKeyhole size={16} /> Wallet sign-in required</div>
+            <p className="mt-2">Connect MetaMask and sign the backend&apos;s one-time Sepolia challenge before creating or changing job records.</p>
+            <Link href="/settings" className="mt-3 inline-block underline">Open wallet settings →</Link>
+          </section>
+        )}
+        {error && <div role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/[0.06] p-4 text-sm text-red-200">{error}</div>}
+        {notice && <div role="status" className="mb-5 rounded-xl border border-white/15 bg-white/[0.05] p-4 text-sm text-neutral-200">{notice}</div>}
+
+        {step === 0 && (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-7">
+            <h2 className="text-xl font-semibold">Define your job</h2>
+            <p className="mt-1 text-sm text-neutral-400">All fields map to the backend job contract. Budget is measured in simulated VCR credits only.</p>
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <Field label="Job title" value={form.title} onChange={(title) => setForm({ ...form, title })} />
+              <label className="block text-sm text-neutral-300">Task category
+                <select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm text-white">
+                  {["development", "design", "writing", "data", "marketing", "research", "operations", "other"].map((category) => <option key={category} value={category}>{category}</option>)}
+                </select>
+              </label>
+              <Field label="Required skills (comma separated)" value={form.skills} onChange={(skills) => setForm({ ...form, skills })} />
+              <Field label="Required capabilities (comma separated)" value={form.capabilities} onChange={(capabilities) => setForm({ ...form, capabilities })} />
+              <Field label="Budget (VCR)" value={form.budget} onChange={(budget) => setForm({ ...form, budget })} type="number" />
+              <Field label="Deadline" value={form.deadline} onChange={(deadline) => setForm({ ...form, deadline })} type="datetime-local" />
+            </div>
+            <TextArea label="Description" value={form.description} onChange={(description) => setForm({ ...form, description })} rows={4} />
+            <TextArea label="Expected deliverables (one per line)" value={form.deliverables} onChange={(deliverables) => setForm({ ...form, deliverables })} rows={2} />
+            <TextArea label="Acceptance conditions (one per line)" value={form.criteria} onChange={(criteria) => setForm({ ...form, criteria })} rows={3} />
+            <TextArea label="Responsibilities (one per line)" value={form.responsibilities} onChange={(responsibilities) => setForm({ ...form, responsibilities })} rows={2} />
+            <Action onClick={() => void createJob()} disabled={busy || !authenticated || form.title.trim().length < 3 || !form.description.trim() || splitTags(form.skills).length === 0 || splitTags(form.capabilities).length === 0 || splitLines(form.deliverables).length === 0 || splitLines(form.criteria).length === 0 || splitLines(form.responsibilities).length === 0 || !form.deadline}>
+              Create job and continue <ArrowRight size={16} />
+            </Action>
+          </section>
+        )}
+
+        {step >= 1 && job && (
+          <section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-7">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-widest text-neutral-500">Persisted job #{job.id}</p>
+                <h2 className="mt-2 text-2xl font-semibold">{job.title}</h2>
+                <p className="mt-2 text-sm text-neutral-400">{job.status} · {formatMoney(job.budget_amount, job.currency)}</p>
+              </div>
+              <LiquidButton type="button" onClick={() => void refresh()} disabled={busy} className="inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-xs"><RefreshCw size={14} /> Refresh backend record</LiquidButton>
+            </div>
+
+            {step === 1 && <div className="mt-6"><h3 className="font-semibold">Find eligible agents</h3><p className="mt-1 text-sm text-neutral-400">Matching is computed by the authenticated backend using the persisted job requirements.</p><Action onClick={() => void computeMatches()} disabled={busy}>Compute matches <ArrowRight size={16} /></Action></div>}
+
+            {step >= 2 && (
+              <div className="mt-6">
+                <h3 className="font-semibold">Matching results</h3>
+                <p className="mt-1 text-xs text-neutral-500">Scores, component weights and explanations are returned by the backend.</p>
+                {available.length === 0 ? <p className="mt-4 rounded-xl border border-white/10 p-4 text-sm text-neutral-400">The backend returned no eligible matches for this job. Revise the required skills, capabilities or budget and compute matches again.</p> : (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {available.map((candidate) => (
+                      <button type="button" key={candidate.agent_id} onClick={() => setSelected(candidate)} className={`rounded-xl border p-4 text-left ${selected?.agent_id === candidate.agent_id ? "border-white/50 bg-white/10" : "border-white/10 bg-black/20"}`}>
+                        <div className="flex justify-between gap-3"><strong>{candidate.agent_name}</strong><span className="text-sm tabular-nums">{candidate.score.toFixed(2)}</span></div>
+                        <p className="mt-2 text-xs text-neutral-400">Listed skills: {candidate.agent.skills?.join(", ") || "Not supplied"}</p>
+                        <ul className="mt-2 space-y-1">{candidate.reasons.map((reason, index) => <li key={index} className="text-[11px] text-neutral-500">{reason.component}: {reason.explanation}</li>)}</ul>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {step === 2 && <Action onClick={() => void chooseAgent()} disabled={busy || !selected}>Create agreement with selected agent <ArrowRight size={16} /></Action>}
+              </div>
+            )}
+
+            {step >= 3 && agreement && (
+              <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
+                <h3 className="font-semibold">Agreement #{agreement.id}</h3>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
+                {step === 3 && <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number} <ShieldCheck size={16} /></Action>}
+              </div>
+            )}
+
+            {step >= 4 && agreement && (
+              <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
+                <h3 className="font-semibold">Accepted agreement</h3>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
+                <p className="mt-2 text-xs text-neutral-500">Acceptance records: {agreement.acceptances.length}</p>
+                {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
+              </div>
+            )}
+
+            {step === 5 && escrow && (
+              <div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5">
+                <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> M0–M3 workflow complete</div>
+                <p className="mt-2 text-sm text-neutral-300">Escrow #{escrow.id} · {escrow.status} · {formatMoney(escrow.amount, escrow.currency)}</p>
+                <p className="mt-2 text-xs text-neutral-400">This is a simulated VCR ledger record. No real payment, blockchain transaction, agent execution, verification, or dispute action occurred.</p>
+                <p className="mt-4 text-xs text-neutral-500">The current backend does not expose a per-job audit-history endpoint. The account ledger is available in the dashboard.</p>
+                <Link href="/jobs" className="mt-5 inline-block underline">Open job registry →</Link>
+              </div>
+            )}
+          </section>
+        )}
+        <p className="mt-6 text-xs leading-5 text-neutral-500">M4 agent execution, verification, and dispute resolution are not exposed by the current backend. The interface will not claim those actions have happened until supported and verified by the backend.</p>
+      </div>
+    </main>
+  );
 }
-function Field({label,value,onChange,type="text"}:{label:string;value:string;onChange:(v:string)=>void;type?:string}){return <label className="block text-sm text-neutral-300">{label}<input type={type} value={value} onChange={e=>onChange(e.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm text-white outline-none focus:border-white/40"/></label>}
-function Action({children,onClick,disabled}:{children:React.ReactNode;onClick:()=>void;disabled?:boolean}){return <LiquidButton type="button" onClick={onClick} disabled={disabled} className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold disabled:opacity-40">{children}</LiquidButton>}
+
+function Field({ label, value, onChange, type = "text" }: { label: string; value: string; onChange: (value: string) => void; type?: string }) {
+  return <label className="block text-sm text-neutral-300">{label}<input type={type} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 px-3 py-2.5 text-sm text-white outline-none focus:border-white/40" /></label>;
+}
+
+function TextArea({ label, value, onChange, rows }: { label: string; value: string; onChange: (value: string) => void; rows: number }) {
+  return <label className="mt-4 block text-sm text-neutral-300">{label}<textarea rows={rows} value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 w-full rounded-xl border border-white/15 bg-black/30 p-3 text-sm text-white outline-none focus:border-white/40" /></label>;
+}
+
+function Action({ children, onClick, disabled }: { children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+  return <LiquidButton type="button" onClick={onClick} disabled={disabled} className="mt-5 inline-flex items-center gap-2 rounded-full border border-white/20 px-5 py-3 text-sm font-semibold disabled:opacity-40">{children}</LiquidButton>;
+}

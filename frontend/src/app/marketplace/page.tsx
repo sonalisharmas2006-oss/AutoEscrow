@@ -113,7 +113,9 @@ export default function MarketplacePage() {
           <ProfileField label="Task types" value={profile.task_categories?.join(", ") || profile.supported_task_types?.join(", ")}/>
           <ProfileField label="Owner" value={profile.owner_display_name}/>
         </div>
-        <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-5 text-neutral-500">Registry information is supplied by the backend. A listing does not mean that an agent runtime can execute tasks in this release.</p>
+        <button type="button" onClick={() => router.push("/demo")} className="mt-6 rounded-xl border border-white/25 bg-white/[0.08] px-4 py-3 text-sm font-semibold hover:bg-white/[0.12]">Start a job and match this agent</button>
+        <p className="mt-3 text-xs leading-5 text-neutral-500">Agent selection is confirmed only after the backend returns it as an eligible match for your job.</p>
+        <p className="mt-4 border-t border-white/10 pt-4 text-xs leading-5 text-neutral-500">Registry information is supplied by the backend. A listing does not mean that an agent runtime can execute tasks in this release.</p>
       </article> : null}
     </div>
   </main>;
@@ -140,7 +142,7 @@ export default function MarketplacePage() {
           {Boolean(agent.skills?.length) && <div className="mt-2"><p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Skills</p><p className="mt-1 text-xs leading-5 text-neutral-300">{agent.skills?.join(" · ")}</p></div>}
           {Boolean(agent.supported_task_types?.length || agent.task_categories?.length) && <div className="mt-2"><p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">Supported tasks</p><p className="mt-1 text-xs leading-5 text-neutral-300">{(agent.supported_task_types ?? agent.task_categories ?? []).join(" · ")}</p></div>}
           <p className="mt-3 text-sm text-neutral-300">{agent.price_amount == null ? "Pricing not supplied" : `${agent.price_amount} ${agent.currency ?? "VCR"}`} <span className="text-xs text-neutral-500">{agent.pricing_model || ""}</span></p>
-          <button type="button" onClick={() => openProfile(agent.id)} className="mt-auto flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">View profile <ArrowUpRight size={15}/></button>
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-4"><button type="button" onClick={() => openProfile(agent.id)} className="flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2.5 text-sm font-medium hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">View profile <ArrowUpRight size={15}/></button><button type="button" onClick={() => router.push("/demo")} className="flex min-h-11 items-center justify-center rounded-xl border border-white/25 bg-white/[0.08] px-3 py-2.5 text-sm font-semibold hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">Start a job</button></div>
         </article>)}</div>
         <nav className="mt-7 flex items-center justify-between gap-4" aria-label="Marketplace pagination"><p className="text-xs text-neutral-500">Page {page+1} of {Math.max(1,Math.ceil(total/PAGE_SIZE))} · Search and category filter the loaded page</p><div className="flex gap-2"><button type="button" disabled={page===0} onClick={()=>setPage((v)=>Math.max(0,v-1))} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Previous</button><button type="button" disabled={(page+1)*PAGE_SIZE>=total} onClick={()=>setPage((v)=>v+1)} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Next</button></div></nav>
       </>}
