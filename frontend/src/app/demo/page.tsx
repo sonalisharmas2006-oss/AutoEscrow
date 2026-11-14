@@ -119,11 +119,11 @@ export default function GuidedWorkflowPage() {
     if (!agreement) return;
     if (!window.confirm("Accept this versioned agreement? The acceptance will be recorded by the backend.")) return;
     await run(async () => {
-      const version = agreement.current_version_number ?? agreement.proposal_version ?? 1;
+      const version = agreement.current_version_number;
       await api.acceptAgreement(agreement.id, version);
       const latest = await api.getAgreement(agreement.id);
       setAgreement(latest);
-      if (isAgreementFullyAccepted(latest) && (latest.accepted_version ?? latest.current_version_number) === version) {
+      if (isAgreementFullyAccepted(latest)) {
         setStep(4);
         setNotice("The backend confirms this agreement version is fully accepted. Simulated escrow funding is now available.");
       } else {
@@ -283,8 +283,8 @@ export default function GuidedWorkflowPage() {
             {step >= 3 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
-                <p className="mt-1 text-sm text-neutral-400">Proposal version {agreement.proposal_version ?? agreement.current_version_number ?? 1} · {agreement.status} · {formatMoney(agreement.proposed_budget ?? agreement.amount, agreement.currency ?? "VCR")}</p>
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms ?? agreement.current_version?.terms ?? {}, null, 2)}</pre>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
                 {step === 3 && (
                   <div className="mt-4">
                     {isAgreementFullyAccepted(agreement)
@@ -299,7 +299,7 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Accepted agreement</h3>
                 <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
-                <p className="mt-2 text-xs text-neutral-500">Accepted version: {agreement.accepted_version ?? "Not accepted"} · Acceptance records: {agreement.acceptances?.length ?? 0}</p>
+                <p className="mt-2 text-xs text-neutral-500">Current version: {agreement.current_version_number} · Acceptance records: {agreement.acceptances.length}</p>
                 {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
               </div>
             )}
