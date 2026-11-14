@@ -146,10 +146,14 @@ export interface ApiAgreement {
   owner_user_id: string;
   agent_owner_user_id: string;
   status: string;
-  current_version_number: number;
-  current_version: ApiAgreementVersion;
-  versions: ApiAgreementVersion[];
-  acceptances: ApiAgreementAcceptance[];
+  current_version_number?: number;
+  current_version?: ApiAgreementVersion;
+  versions?: ApiAgreementVersion[];
+  acceptances?: ApiAgreementAcceptance[];
+  // Legacy V2 backend contract: proposal_version / accepted_version.
+  proposal_version?: number;
+  accepted_version?: number | null;
+  accepted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -684,12 +688,32 @@ const normalizeMatchRun = (response: ApiMatchRun): ApiMatchRun => {
 };
 
 export const isAgreementFullyAccepted = (agreement: ApiAgreement): boolean => {
-  const version = agreement.current_version_number;
-  const versionAcceptances = (agreement.acceptances ?? []).filter((item) => item.version_number === version);
-  const distinctParties = new Set(versionAcceptances.map((item) => item.party || item.user_id).filter(Boolean));
-  return ["accepted", "active"].includes(String(agreement.status).toLowerCase()) &&
-    version > 0 &&
+  const status = String(agreement.status ?? "").toLowerCase();
+  const currentVersion = Number(
+    agreement.current_version_number ??
+    agreement.proposal_version ??
+    agreement.current_version?.version_number ??
+    1,
+  );
+  const acceptedVersion = Number(agreement.accepted_version ?? currentVersion);
+  // The deployed V2 backend records one authoritative acceptance on the
+  // agreement (status + accepted_version); it does not return per-party
+  // acceptance rows. Newer API variants may still return explicit acceptances.
+  const versionAcceptances = (agreement.acceptances ?? []).filter(
+    (item) => Number(item.version_number) === currentVersion,
+  );
+  const distinctParties = new Set(
+    versionAcceptances.map((item) => item.party || item.user_id).filter(Boolean),
+  );
+  const legacyAcceptance =
+    status === "accepted" &&
+    currentVersion > 0 &&
+    acceptedVersion === currentVersion;
+  const multiPartyAcceptance =
+    ["accepted", "active"].includes(status) &&
+    currentVersion > 0 &&
     distinctParties.size >= 2;
+  return legacyAcceptance || multiPartyAcceptance;
 };
 
 export const autoEscrowApi = {
@@ -834,8 +858,11 @@ export const autoEscrowApi = {
     return request<ApiAgreement>(`/agreements/${path(agreementId)}/versions`, { method: "POST", body: payload });
   },
 
-  acceptAgreement(agreementId: string | number, versionNumber: number) {
-    return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: { version_number: versionNumber } });
+  acceptAgreement(agreementId: string | number, _versionNumber?: number) {
+    // The deployed V2 endpoint accepts AgreementActionRequest (rationale only).
+    // Sending version_number is not part of that schema; the backend applies
+    // acceptance to its current proposal_version and returns accepted_version.
+    return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: {} });
   },
 
   createEscrow(agreementId: string | number) {
