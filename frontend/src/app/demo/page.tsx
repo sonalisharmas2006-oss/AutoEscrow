@@ -25,6 +25,8 @@ export default function GuidedWorkflowPage() {
   const [outputNotes, setOutputNotes] = useState("Deterministic Demo Execution — Sample Output");
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeDescription, setDisputeDescription] = useState("");
+  const [demoResult, setDemoResult] = useState<Record<string, unknown> | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -261,6 +263,47 @@ export default function GuidedWorkflowPage() {
               </div>
             )}
 
+            {step >= 5 && escrow && (
+              <section className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <h3 className="text-xl font-semibold">Escrow work execution</h3>
+                <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Deterministic Demo Execution — Sample Output. This executor produces sample output only; it does not invoke a real autonomous agent or external AI model.</p>
+                <Action onClick={() => void run(async () => {
+                  const result = await api.demoExecuteEscrow(escrow.id);
+                  setDemoResult(result);
+                  const latest = await api.getEscrowSubmissions(escrow.id);
+                  setSubmissions(latest);
+                  setNotice("Demo execution completed and escrow submissions refreshed.");
+                })} disabled={busy}>Run deterministic demo executor</Action>
+                {demoResult && <pre className="mt-4 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 p-4 text-xs text-neutral-300">{JSON.stringify(demoResult,null,2)}</pre>}
+                <div className="mt-6">
+                  <h4 className="font-semibold">Deliverables & submission history</h4>
+                  {submissions.length===0 ? <p className="mt-2 text-sm text-neutral-500">No submissions have been recorded.</p> : submissions.map(item=><article key={item.id} className="mt-3 rounded-xl border border-white/10 p-4">
+                    <div className="flex flex-wrap justify-between gap-2"><strong>Attempt {item.version ?? "—"} · Submission #{item.id}</strong><span className="text-xs">{item.status}</span></div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-300">{item.submitted_output}</p>
+                    <p className="mt-2 text-xs text-neutral-500">{item.artifact_url ?? "No artifact URL returned"} · {item.submitted_at}</p>
+                    {item.status==="pending" && <div className="mt-4">
+                      <TextArea label="Buyer review note" value={reviewNote} onChange={setReviewNote} rows={2}/>
+                      <div className="flex flex-wrap gap-2">
+                        <Action onClick={() => void run(async () => {
+                          await api.reviewSubmission(item.id,"approve",reviewNote);
+                          setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                          setNotice("Buyer approval recorded by the backend.");
+                        })} disabled={busy||!reviewNote.trim()}>Approve submission</Action>
+                        <Action onClick={() => void run(async () => {
+                          await api.reviewSubmission(item.id,"reject",reviewNote);
+                          setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                          setNotice("Buyer rejection recorded by the backend.");
+                        })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
+                      </div>
+                    </div>}
+                    {item.status==="rejected" && <Action onClick={() => void run(async () => {
+                      const dispute=await api.createSubmissionDispute(item.id,{reason:disputeReason||"Buyer rejected submission",description:disputeDescription||reviewNote||"Submission review dispute"});
+                      setNotice("Dispute #"+dispute.id+" created.");
+                    })} disabled={busy}>Raise dispute</Action>}
+                  </article>)}
+                </div>
+              </section>
+            )}
             {step === 5 && escrow && (
               <div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5">
                 <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> M0–M3 workflow complete</div>
