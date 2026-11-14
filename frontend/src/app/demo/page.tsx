@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiExecution, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, ApiVerification, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
 const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow", "Run demo execution", "Submit & verify"]
 const futureDate = () => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
@@ -18,13 +18,8 @@ export default function GuidedWorkflowPage() {
   const [selected, setSelected] = useState<ApiMatchCandidate | null>(null);
   const [agreement, setAgreement] = useState<ApiAgreement | null>(null);
   const [escrow, setEscrow] = useState<ApiEscrow | null>(null);
-  const [execution, setExecution] = useState<ApiExecution | null>(null);
   const [submissions, setSubmissions] = useState<ApiSubmission[]>([]);
-  const [verification, setVerification] = useState<ApiVerification | null>(null);
-  const [output, setOutput] = useState("Sample deliverable: processed by the deterministic local demo executor. Illustrative output only.");
-  const [outputNotes, setOutputNotes] = useState("Deterministic Demo Execution — Sample Output");
   const [disputeReason, setDisputeReason] = useState("");
-  const [disputeDescription, setDisputeDescription] = useState("");
   const [demoResult, setDemoResult] = useState<Record<string, unknown> | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [form, setForm] = useState({
@@ -122,6 +117,7 @@ export default function GuidedWorkflowPage() {
 
   async function accept() {
     if (!agreement) return;
+    if (!window.confirm("Accept this versioned agreement? The acceptance will be recorded by the backend.")) return;
     await run(async () => {
       const version = agreement.current_version_number ?? agreement.proposal_version ?? 1;
       await api.acceptAgreement(agreement.id, version);
@@ -150,14 +146,16 @@ export default function GuidedWorkflowPage() {
       setError("Escrow funding requires backend-confirmed acceptance of the current agreement version by both parties.");
       return;
     }
+    if (!window.confirm("Create and fund this simulated VCR escrow? No real money will move.")) return;
     await run(async () => {
-      let createdEscrow = await api.createEscrow(agreement.id);
-      const fundedEscrow = await api.fundEscrow(createdEscrow.id, {
+      const existingEscrow = await api.getEscrowForAgreement(agreement.id);
+      const createdEscrow = existingEscrow ?? await api.createEscrow(agreement.id);
+      const alreadyFunded = ["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase());
+      const fundedEscrow = alreadyFunded ? createdEscrow : await api.fundEscrow(createdEscrow.id, {
         idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
       });
       const listed = await api.listEscrows({ limit: 100, offset: 0 });
-      const persistedEscrow = listed.items.find((item) => String(item.id) === String(fundedEscrow.id)) ?? await api.getEscrow(fundedEscrow.id);
-      createdEscrow = persistedEscrow;
+      const persistedEscrow = listed.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? await api.getEscrow(fundedEscrow.id);
       setEscrow(createdEscrow);
       const [latestJob, latestAgreement, latestSubmissions] = await Promise.all([
         api.getJob(job.id),
@@ -273,6 +271,7 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6">
                 <h3 className="font-semibold">Matching results</h3>
                 <p className="mt-1 text-xs text-neutral-500">Scores, component weights and explanations are returned by the backend.</p>
+                {matches?.weights && <p className="mt-2 text-[11px] text-neutral-500">Scoring weights: {Object.entries(matches.weights).map(([key, value]) => `${key} ${value}`).join(" · ")}</p>}
                 {available.length === 0 ? <div className="mt-4 rounded-xl border border-white/10 p-4 text-sm text-neutral-400"><p>The backend returned no matching agents for this job.</p><p className="mt-1 text-xs text-neutral-500">Try adjusting the required skills, capabilities or VCR budget, then compute matches again.</p><Action onClick={() => void computeMatches()} disabled={busy}>Retry matching <RefreshCw size={14}/></Action></div> : (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     {available.map((candidate) => (
@@ -319,11 +318,23 @@ export default function GuidedWorkflowPage() {
                 <Action onClick={() => void run(async () => {
                   const result = await api.demoExecuteEscrow(escrow.id);
                   setDemoResult(result);
+                  const record = result.submission && typeof result.submission === "object"
+                    ? result.submission as Record<string, unknown>
+                    : result;
+                  const summary = typeof record.summary === "string" ? record.summary : "";
+                  const deliverables = Array.isArray(record.deliverables)
+                    ? record.deliverables.filter((value): value is string => typeof value === "string")
+                    : [];
+                  const executor = typeof record.executor === "string" ? record.executor : "deterministic_demo_adapter";
+                  if (summary.trim() && deliverables.length > 0) {
+                    await api.createEscrowSubmission(escrow.id, { summary, deliverables, executor });
+                  }
                   const latest = await api.getEscrowSubmissions(escrow.id);
                   setSubmissions(latest);
-                  setNotice(latest.length
-                    ? `Demo adapter returned; ${latest.length} backend submission record(s) loaded.`
-                    : "Demo adapter request returned, but the backend has not recorded a submission yet.");
+                  if (latest.length) setStep(6);
+                  setNotice(summary.trim() && deliverables.length
+                    ? `Demo adapter output was submitted; ${latest.length} persisted submission record(s) loaded.`
+                    : "Demo adapter returned its response, but it did not contain submission-ready summary and deliverables. No submission data was fabricated.");
                 })} disabled={busy}>Run deterministic demo adapter</Action>
                 {demoResult && <pre className="mt-4 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 p-4 text-xs text-neutral-300">{JSON.stringify(demoResult,null,2)}</pre>}
                 <div className="mt-6">
@@ -334,22 +345,24 @@ export default function GuidedWorkflowPage() {
                     {item.deliverables?.length > 0 && <ul className="mt-2 list-disc pl-5 text-xs text-neutral-400">{item.deliverables.map((deliverable, index) => <li key={index}>{deliverable}</li>)}</ul>}
                     <p className="mt-2 text-xs text-neutral-500">Executor: {item.executor} · {item.created_at}</p>
                     {item.review_note && <p className="mt-2 text-xs text-neutral-400">Review note: {item.review_note}</p>}
-                    {item.status==="submitted" && <div className="mt-4">
+                    {item.status==="submitted" && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <div className="mt-4">
                       <TextArea label="Buyer review note" value={reviewNote} onChange={setReviewNote} rows={2}/>
                       <div className="flex flex-wrap gap-2">
                         <Action onClick={() => void run(async () => {
                           await api.reviewSubmission(item.id,"approve",reviewNote);
                           setSubmissions(await api.getEscrowSubmissions(escrow.id));
-                          setNotice("Buyer approval recorded by the backend.");
+                          setEscrow(await api.getEscrow(escrow.id));
+                          setNotice("Backend confirmed the submission review decision: approved.");
                         })} disabled={busy||!reviewNote.trim()}>Approve submission</Action>
                         <Action onClick={() => void run(async () => {
                           await api.reviewSubmission(item.id,"reject",reviewNote);
                           setSubmissions(await api.getEscrowSubmissions(escrow.id));
-                          setNotice("Buyer rejection recorded by the backend.");
+                          setEscrow(await api.getEscrow(escrow.id));
+                          setNotice("Backend confirmed the submission review decision: rejected.");
                         })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
                       </div>
                     </div>}
-                    {item.status==="approved" && escrow.status!=="released" && <Action onClick={() => void run(async () => {
+                    {item.status==="approved" && escrow.status!=="released" && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
                       const openDisputes = await api.listDisputes("open");
                       if (openDisputes.some((dispute) => String(dispute.escrow_id) === String(escrow.id))) {
                         setError("Settlement is blocked while this escrow has an open dispute.");
@@ -361,7 +374,7 @@ export default function GuidedWorkflowPage() {
                       setEscrow(persisted ?? released);
                       setNotice(`Backend confirmed escrow status: ${persisted?.status ?? released.status}. VCR remains simulated credit only.`);
                     })} disabled={busy || String(authState.getUser()?.id) !== String(escrow.buyer_user_id)}>Release to agent owner</Action>}
-                    {["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && <Action onClick={() => void run(async () => {
+                    {["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
                       const openDisputes = await api.listDisputes("open");
                       if (openDisputes.some((dispute) => String(dispute.escrow_id) === String(escrow.id))) {
                         setError("A refund request is blocked while this escrow has an open dispute.");
