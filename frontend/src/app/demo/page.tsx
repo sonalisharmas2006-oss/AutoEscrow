@@ -244,19 +244,19 @@ export default function GuidedWorkflowPage() {
             {step >= 3 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
-                {step === 3 && (agreement.acceptances.some((item) => item.user_id === authState.getUser()?.id && item.version_number === agreement.current_version_number)
-                  ? <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Your acceptance is recorded. Waiting for the agent owner to accept this version before escrow can be created.</p>
-                  : <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number} <ShieldCheck size={16} /></Action>)}
+                <p className="mt-1 text-sm text-neutral-400">Proposal version {agreement.proposal_version ?? agreement.current_version_number ?? 1} · {agreement.status} · {formatMoney(agreement.proposed_budget ?? agreement.amount, agreement.currency ?? "VCR")}</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms ?? agreement.current_version?.terms ?? {}, null, 2)}</pre>
+                {step === 3 && (agreement.accepted_version != null
+                  ? <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">The backend has recorded acceptance for version {agreement.accepted_version}.</p>
+                  : <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.proposal_version ?? 1} <ShieldCheck size={16} /></Action>)}
               </div>
             )}
 
             {step >= 4 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Accepted agreement</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
-                <p className="mt-2 text-xs text-neutral-500">Acceptance records: {agreement.acceptances.length}</p>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.accepted_version ?? agreement.proposal_version ?? 1} · {agreement.status}</p>
+                <p className="mt-2 text-xs text-neutral-500">Accepted version: {agreement.accepted_version ?? "Not accepted"}</p>
                 {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
               </div>
             )}
