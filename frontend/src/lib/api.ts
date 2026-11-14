@@ -161,9 +161,6 @@ export interface ApiEscrow {
   escrow_locked: string;
   funded_at: string | null;
   created_at: string;
-  updated_at?: string;
-  amount?: string;
-  currency?: string;
   updated_at: string;
   accepted_amount: string;
   accepted_currency: string;
