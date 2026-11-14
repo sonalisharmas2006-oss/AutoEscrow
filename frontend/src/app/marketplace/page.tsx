@@ -50,7 +50,7 @@ export default function MarketplacePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, category, search]);
+  }, [page, status]);
 
   useEffect(() => { void load(); }, [load]);
 
