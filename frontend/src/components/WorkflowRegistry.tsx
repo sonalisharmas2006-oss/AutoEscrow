@@ -191,6 +191,7 @@ function DisputeQueue() {
       setError("Resolution note must contain at least 10 characters.");
       return;
     }
+    if (!window.confirm(`Resolve dispute #${id} with the ${resolution} decision? This records the dispute decision but does not itself settle escrow.`)) return;
     setBusy(String(id));
     setError("");
     setMessage("");
