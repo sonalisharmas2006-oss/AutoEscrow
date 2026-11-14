@@ -789,7 +789,7 @@ export const autoEscrowApi = {
   listMarketplaceAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true });
+    return request<ApiList<ApiAgent> | ApiAgent[]>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true }).then(normalizeApiList);
   },
 
   getMarketplaceAgent(agentId: number | string) {
@@ -841,7 +841,7 @@ export const autoEscrowApi = {
   listAgreements(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgreement>>(`/agreements${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgreement> | ApiAgreement[]>(`/agreements${query.size ? `?${query}` : ""}`).then(normalizeApiList);
   },
 
   getAgreement(agreementId: number | string) {
@@ -947,15 +947,6 @@ export const autoEscrowApi = {
     return request<ApiDashboardExecutionMetrics>("/dashboard/execution");
   },
 
-  getJobDisputes(jobId: number | string, status?: string, _options?: { session?: "required" | "optional" }) {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<ApiDispute[]>(`/jobs/${path(jobId)}/disputes${query}`);
-  },
-
-  getJobEvents(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiJobEvent[]>(`/jobs/${path(jobId)}/events`);
-  },
-
   async getSubmissions(jobId: number | string) {
     const escrow = await autoEscrowApi.getEscrowForJob(jobId);
     return escrow ? autoEscrowApi.getEscrowSubmissions(escrow.id) : [];
@@ -991,14 +982,6 @@ export const autoEscrowApi = {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
     const response = await request<ApiList<ApiDispute> | ApiDispute[]>(`/disputes${query}`);
     return normalizeListResponse(response);
-  },
-
-  createDispute(jobId: number | string, payload: Record<string, unknown>) {
-    return request<ApiDispute>(`/jobs/${path(jobId)}/disputes`, { method: "POST", body: payload });
-  },
-
-  reviewDispute(disputeId: number | string, rationale: string) {
-    return request<ApiDispute>(`/disputes/${path(disputeId)}/review`, { method: "POST", body: { rationale } });
   },
 
   resolveDispute(disputeId: number | string, resolution: "release" | "refund", note: string) {
