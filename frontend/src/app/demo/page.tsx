@@ -25,6 +25,8 @@ export default function GuidedWorkflowPage() {
   const [outputNotes, setOutputNotes] = useState("Deterministic Demo Execution — Sample Output");
   const [disputeReason, setDisputeReason] = useState("");
   const [disputeDescription, setDisputeDescription] = useState("");
+  const [demoResult, setDemoResult] = useState<Record<string, unknown> | null>(null);
+  const [reviewNote, setReviewNote] = useState("");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -98,7 +100,9 @@ export default function GuidedWorkflowPage() {
         proposed_budget: form.budget, proposed_deadline: new Date(form.deadline).toISOString(), currency: "VCR",
         terms: { scope: job.description, expected_deliverable: splitLines(form.deliverables).join("\n"),
           acceptance_criteria: splitLines(form.criteria), instructions: splitLines(form.responsibilities).join("\n"),
-          verification_method: "Deterministic checks against the accepted agreement criteria" },
+          verification_method: "Deterministic checks against the accepted agreement criteria",
+          cancellation_conditions: "Cancel only before the execution has started.",
+          dispute_conditions: "Either party may raise a dispute when the deliverable or review outcome is contested." },
       });
       setAgreement(proposal);
       setStep(3);
@@ -109,9 +113,7 @@ export default function GuidedWorkflowPage() {
   async function accept() {
     if (!agreement) return;
     await run(async () => {
-      const accepted = await api.acceptAgreement(agreement.id, {
-        version_number: agreement.current_version_number,
-      });
+      const accepted = await api.acceptAgreement(agreement.id);
       setAgreement(accepted);
       if (accepted.status === "accepted") {
         setStep(4); setNotice("Your authenticated acceptance was recorded by the backend. Funding can proceed.");
@@ -162,7 +164,7 @@ export default function GuidedWorkflowPage() {
           </p>
         </header>
 
-        <div className="mb-7 grid gap-2 sm:grid-cols-5" aria-label="Workflow progress">
+        <div className="mb-7 grid gap-2 sm:grid-cols-7" aria-label="Workflow progress">
           {steps.map((label, index) => (
             <div key={label} aria-current={index === step ? "step" : undefined} className={`rounded-xl border p-3 text-xs ${index < step ? "border-white/25 bg-white/10" : index === step ? "border-white/35 bg-white/[0.08]" : "border-white/10 bg-white/[0.025]"}`}>
               <p className="text-neutral-500">STEP 0{index + 1}</p>
@@ -244,35 +246,88 @@ export default function GuidedWorkflowPage() {
             {step >= 3 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
-                {step === 3 && (agreement.acceptances.some((item) => item.user_id === authState.getUser()?.id && item.version_number === agreement.current_version_number)
-                  ? <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Your acceptance is recorded. Waiting for the agent owner to accept this version before escrow can be created.</p>
-                  : <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number} <ShieldCheck size={16} /></Action>)}
+                <p className="mt-1 text-sm text-neutral-400">Proposal version {agreement.proposal_version ?? agreement.current_version_number ?? 1} · {agreement.status} · {formatMoney(agreement.proposed_budget ?? agreement.amount, agreement.currency ?? "VCR")}</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms ?? agreement.current_version?.terms ?? {}, null, 2)}</pre>
+                {step === 3 && (agreement.accepted_version != null
+                  ? <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">The backend has recorded acceptance for version {agreement.accepted_version}.</p>
+                  : <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.proposal_version ?? 1} <ShieldCheck size={16} /></Action>)}
               </div>
             )}
 
             {step >= 4 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Accepted agreement</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
-                <p className="mt-2 text-xs text-neutral-500">Acceptance records: {agreement.acceptances.length}</p>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.accepted_version ?? agreement.proposal_version ?? 1} · {agreement.status}</p>
+                <p className="mt-2 text-xs text-neutral-500">Accepted version: {agreement.accepted_version ?? "Not accepted"}</p>
                 {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
               </div>
             )}
 
+            {step >= 5 && escrow && (
+              <section className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <h3 className="text-xl font-semibold">Escrow work execution</h3>
+                <p className="mt-2 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Deterministic Demo Execution — Sample Output. This executor produces sample output only; it does not invoke a real autonomous agent or external AI model.</p>
+                <Action onClick={() => void run(async () => {
+                  const result = await api.demoExecuteEscrow(escrow.id);
+                  setDemoResult(result);
+                  const latest = await api.getEscrowSubmissions(escrow.id);
+                  setSubmissions(latest);
+                  setNotice("Demo execution completed and escrow submissions refreshed.");
+                })} disabled={busy}>Run deterministic demo executor</Action>
+                {demoResult && <pre className="mt-4 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 p-4 text-xs text-neutral-300">{JSON.stringify(demoResult,null,2)}</pre>}
+                <div className="mt-6">
+                  <h4 className="font-semibold">Deliverables & submission history</h4>
+                  {submissions.length===0 ? <p className="mt-2 text-sm text-neutral-500">No submissions have been recorded.</p> : submissions.map(item=><article key={item.id} className="mt-3 rounded-xl border border-white/10 p-4">
+                    <div className="flex flex-wrap justify-between gap-2"><strong>Attempt {item.version ?? "—"} · Submission #{item.id}</strong><span className="text-xs">{item.status}</span></div>
+                    <p className="mt-2 whitespace-pre-wrap text-sm text-neutral-300">{item.submitted_output}</p>
+                    <p className="mt-2 text-xs text-neutral-500">{item.artifact_url ?? "No artifact URL returned"} · {item.submitted_at}</p>
+                    {item.status==="pending" && <div className="mt-4">
+                      <TextArea label="Buyer review note" value={reviewNote} onChange={setReviewNote} rows={2}/>
+                      <div className="flex flex-wrap gap-2">
+                        <Action onClick={() => void run(async () => {
+                          await api.reviewSubmission(item.id,"approve",reviewNote);
+                          setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                          setNotice("Buyer approval recorded by the backend.");
+                        })} disabled={busy||!reviewNote.trim()}>Approve submission</Action>
+                        <Action onClick={() => void run(async () => {
+                          await api.reviewSubmission(item.id,"reject",reviewNote);
+                          setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                          setNotice("Buyer rejection recorded by the backend.");
+                        })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
+                      </div>
+                    </div>}
+                    {item.status==="accepted" && escrow.status!=="released" && <Action onClick={() => void run(async () => {
+                      const released=await api.releaseEscrow(escrow.id,"autoescrow-"+job?.id+"-"+escrow.id+"-release-v1");
+                      setEscrow(released);
+                      setNotice("Agent-side simulated escrow release recorded by the backend.");
+                    })} disabled={busy}>Release to agent</Action>}
+                    {item.status==="rejected" && <>
+                      <Action onClick={() => void run(async () => {
+                        const refunded=await api.refundEscrow(escrow.id,"autoescrow-"+job?.id+"-"+escrow.id+"-refund-v1");
+                        setEscrow(refunded);
+                        setNotice("Buyer refund recorded by the backend.");
+                      })} disabled={busy}>Refund buyer</Action>
+                      <Action onClick={() => void run(async () => {
+                        const dispute=await api.createSubmissionDispute(item.id,{reason:disputeReason||"Buyer rejected submission",description:disputeDescription||reviewNote||"Submission review dispute"});
+                        setNotice("Dispute #"+dispute.id+" created.");
+                      })} disabled={busy}>Raise dispute</Action>
+                    </>}
+                  </article>)}
+                </div>
+              </section>
+            )}
             {step === 5 && escrow && (
               <div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5">
-                <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> M0–M3 workflow complete</div>
+                <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> Escrow settlement status</div>
                 <p className="mt-2 text-sm text-neutral-300">Escrow #{escrow.id} · {escrow.status} · {formatMoney(escrow.amount, escrow.currency)}</p>
-                <p className="mt-2 text-xs text-neutral-400">This is a simulated VCR ledger record. No real payment, blockchain transaction, agent execution, verification, or dispute action occurred.</p>
+                <p className="mt-2 text-xs text-neutral-400">VCR is simulated credit with no monetary value. No real payment gateway or blockchain transfer is involved.</p>
                 <p className="mt-4 text-xs text-neutral-500">The current backend does not expose a per-job audit-history endpoint. The account ledger is available in the dashboard.</p>
                 <Link href="/jobs" className="mt-5 inline-block underline">Open job registry →</Link>
               </div>
             )}
           </section>
         )}
-        <p className="mt-6 text-xs leading-5 text-neutral-500">M4 agent execution, verification, and dispute resolution are not exposed by the current backend. The interface will not claim those actions have happened until supported and verified by the backend.</p>
+        <p className="mt-6 text-xs leading-5 text-neutral-500">Execution is explicitly labelled deterministic sample output; no real autonomous agent or external AI model is invoked.</p>
       </div>
     </main>
   );
