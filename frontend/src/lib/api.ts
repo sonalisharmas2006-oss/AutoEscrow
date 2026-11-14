@@ -815,12 +815,12 @@ export const autoEscrowApi = {
     return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
   },
 
-  releaseEscrow(escrowId: number | string) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/release`, { method: "POST" });
+  releaseEscrow(escrowId: number | string, idempotencyKey: string) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/release`, { method: "POST", body: { idempotency_key: idempotencyKey } });
   },
 
-  refundEscrow(escrowId: number | string) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/refund`, { method: "POST" });
+  refundEscrow(escrowId: number | string, idempotencyKey: string) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/refund`, { method: "POST", body: { idempotency_key: idempotencyKey } });
   },
 
   computeMatches(jobId: number | string) {
