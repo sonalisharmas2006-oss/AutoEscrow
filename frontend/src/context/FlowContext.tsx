@@ -104,10 +104,10 @@ const transactionFromJob = (
     timestamp: new Date(updatedAt).toLocaleString(),
     backendJobId: job.id,
     publicJobId: job.public_id,
-    agreementId: extras.agreement ? Number(extras.agreement.id) : undefined,
-    escrowId: extras.escrow ? Number(extras.escrow.id) : undefined,
+    agreementId: extras.agreement?.id,
+    escrowId: extras.escrow?.id,
     executionStatus: extras.execution?.execution_status,
-    verificationId: extras.verification ? Number(extras.verification.id) : undefined,
+    verificationId: extras.verification?.id,
   };
 };
 
