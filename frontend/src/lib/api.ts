@@ -713,11 +713,11 @@ export const autoEscrowApi = {
   listMarketplaceAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgent>>(`/agents${query.size ? `?${query}` : ""}`);
   },
 
   getMarketplaceAgent(agentId: number | string) {
-    return request<ApiAgent>(`/marketplace/agents/${path(agentId)}`);
+    return request<ApiAgent>(`/agents/${path(agentId)}`);
   },
 
   createJob(payload: ApiJobCreateRequest) {
