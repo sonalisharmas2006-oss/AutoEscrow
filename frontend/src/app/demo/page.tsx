@@ -76,9 +76,10 @@ export default function GuidedWorkflowPage() {
         status: "open",
         visibility: "public",
       });
+      if (!created?.id) throw new Error("The backend returned a successful response without a job ID. The workflow cannot continue.");
       setJob(created);
       setStep(1);
-      setNotice("Job saved by the backend.");
+      setNotice(`Job #${created.id} was created by the backend.`);
     });
   }
 
@@ -89,7 +90,7 @@ export default function GuidedWorkflowPage() {
       setMatches(result);
       setSelected(null);
       setStep(2);
-      setNotice("Explainable match results loaded from the backend.");
+      setNotice(`${result.matches.length} matching agent(s) returned by the backend.`);
     });
   }
 
@@ -109,6 +110,7 @@ export default function GuidedWorkflowPage() {
           acceptance_conditions: splitLines(form.criteria),
         },
       });
+      if (!proposal?.id) throw new Error("The backend did not return an agreement ID. The workflow cannot continue.");
       setAgreement(proposal);
       setStep(3);
       setNotice("Versioned agreement proposal saved by the backend. Review the terms before accepting.");
@@ -183,7 +185,7 @@ export default function GuidedWorkflowPage() {
       setSubmissions(latestSubmissions);
       if (latestSubmissions.length) setStep(6);
       else if (latestEscrow && ["funded", "held", "active"].includes(String(latestEscrow.status).toLowerCase())) setStep(5);
-      else if (latestAgreement && ["accepted", "active"].includes(String(latestAgreement.status).toLowerCase())) setStep(4);
+      else if (latestAgreement && isAgreementFullyAccepted(latestAgreement)) setStep(4);
       else if (latestAgreement) setStep(3);
       else setStep(1);
     });
@@ -271,7 +273,7 @@ export default function GuidedWorkflowPage() {
                       <button type="button" key={candidate.agent_id} onClick={() => setSelected(candidate)} className={`rounded-xl border p-4 text-left ${selected?.agent_id === candidate.agent_id ? "border-white/50 bg-white/10" : "border-white/10 bg-black/20"}`}>
                         <div className="flex justify-between gap-3"><strong>{candidate.agent?.name ?? candidate.agent_name}</strong><span className="text-sm tabular-nums">{candidate.score.toFixed(2)}</span></div>
                         <p className="mt-2 text-xs text-neutral-400">Listed skills: {candidate.agent?.skills?.join(", ") || "Not supplied"}</p>
-                        <ul className="mt-2 space-y-1">{candidate.reasons.map((reason, index) => <li key={index} className="text-[11px] text-neutral-500">{String(reason.component ?? "Match factor")}: {String(reason.explanation ?? JSON.stringify(reason))}</li>)}</ul>
+                        <ul className="mt-2 space-y-1">{candidate.reasons.map((reason, index) => <li key={index} className="text-[11px] text-neutral-500">{typeof reason === "string" ? reason : `${String(reason.component ?? "Match factor")}: ${String(reason.explanation ?? JSON.stringify(reason))}`}</li>)}</ul>
                       </button>
                     ))}
                   </div>
@@ -355,7 +357,7 @@ export default function GuidedWorkflowPage() {
                         })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
                       </div>
                     </div>}
-                    {item.status==="approved" && escrow.status!=="released" && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
+                    {item.status==="approved" && ["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
                       const openDisputes = await api.listDisputes("open");
                       if (openDisputes.some((dispute) => String(dispute.escrow_id) === String(escrow.id))) {
                         setError("Settlement is blocked while this escrow has an open dispute.");
@@ -385,6 +387,7 @@ export default function GuidedWorkflowPage() {
                         const dispute = await api.createSubmissionDispute(item.id, disputeReason);
                         setNotice(`Dispute #${dispute.id} was created by the backend.`);
                         setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                        setEscrow(await api.getEscrow(escrow.id));
                       })} disabled={busy || disputeReason.trim().length < 10}>Raise dispute</Action>
                     </div>}
                   </article>)}
