@@ -700,7 +700,7 @@ const normalizeMatchRun = (response: ApiMatchRun): ApiMatchRun => {
   return { ...response, matches, candidates: matches };
 };
 
-const isAgreementAccepted = (agreement: ApiAgreement): boolean => {
+export const isAgreementFullyAccepted = (agreement: ApiAgreement): boolean => {
   const statusAccepted = ["accepted", "active"].includes(String(agreement.status).toLowerCase());
   const version = agreement.current_version_number ?? agreement.proposal_version;
   const acceptedVersion = agreement.accepted_version ?? version;
@@ -874,7 +874,7 @@ export const autoEscrowApi = {
   listEscrows(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiEscrow>>(`/escrows${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiEscrow> | ApiEscrow[]>(`/escrows${query.size ? `?${query}` : ""}`).then(normalizeApiList);
   },
 
   getEscrow(escrowId: number | string) {
