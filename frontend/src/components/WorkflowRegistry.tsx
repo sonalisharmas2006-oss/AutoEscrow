@@ -12,9 +12,9 @@ const titles: Record<View, [string, string]> = {
   jobs: ["Job registry", "Review your persisted job briefs, requirements, status and linked agreements."],
   agreements: ["Agreements", "Review backend-issued versioned terms and acceptance records."],
   escrow: ["Simulated escrow ledger", "Virtual-credit escrow records. No real money is transferred or held."],
-  execution: ["Execution · unavailable", "Agent execution is not exposed by the current backend contract."],
-  verification: ["Verification · unavailable", "Automated work verification is not exposed by the current backend contract."],
-  disputes: ["Disputes · unavailable", "Dispute workflows are not exposed by the current backend contract."],
+  execution: ["Work execution", "Inspect the backend local-demo execution state and submission attempts."],
+  verification: ["Verification", "Inspect deterministic backend verification results."],
+  disputes: ["Dispute management", "Open the authorized dispute workflow from an eligible job."],
   history: ["Ledger history", "Read actual virtual-credit transactions. A complete per-job audit timeline is not exposed by the current API."],
   risk: ["Risk safeguards · unavailable", "No financial-risk prediction or risk score is presented as an operational guarantee."],
 };
@@ -89,10 +89,12 @@ export default function WorkflowRegistry({ view }: { view: View }) {
     return <Workspace title={titles[view][0]} intro={titles[view][1]}>
       <section className="record-panel">
         <div className="warning-panel" role="status">
-          <strong>Not available in this backend release.</strong>
-          <p>This section is intentionally disabled. The frontend will not create placeholder records or claim that an unsupported action succeeded.</p>
+          <strong>Continue from a persisted job.</strong>
+          <p>Open a saved job and continue its guided workflow to run the deterministic demo executor, inspect submission attempts and verification, or create a dispute when eligible.</p>
+          <p className="mt-2 text-xs">No external autonomous agent or AI model is invoked. VCR is simulated credit with no monetary value.</p>
         </div>
-        <Link href="/jobs" className="primary-button mt-4 inline-block">Return to supported jobs workflow</Link>
+        <Link href="/jobs" className="primary-button mt-4 inline-block">Open persisted jobs →</Link>
+        <Link href="/demo" className="ml-4 mt-4 inline-block underline">Continue guided workflow</Link>
       </section>
     </Workspace>;
   }
