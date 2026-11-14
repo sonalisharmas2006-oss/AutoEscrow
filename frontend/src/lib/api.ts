@@ -512,7 +512,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     headers.set("Content-Type", "application/json");
   }
   const url = normalizeApiPath(path);
-  const requiresAuth = !/\/auth\/(wallet\/nonce|wallet\/verify|token\/refresh)/.test(path) && !path.endsWith("/health") && !path.endsWith("/ready");
+  const requiresAuth = !options.public && !/\/auth\/(wallet\/nonce|wallet\/verify|token\/refresh)/.test(path) && !path.endsWith("/health") && !path.endsWith("/ready");
   if (requiresAuth) {
     const accessToken = authState.getAccessToken();
     if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
@@ -546,7 +546,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   const contentType = response.headers.get("content-type") || "";
 
   if (!response.ok) {
-    if (response.status === 401) {
+    if (response.status === 401 && !options.public) {
       authState.clear();
     }
 
