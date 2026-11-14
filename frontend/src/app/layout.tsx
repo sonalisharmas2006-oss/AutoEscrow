@@ -5,7 +5,7 @@ import GlobalExperience from "@/components/GlobalExperience";
 
 export const metadata = {
   title: "AutoEscrow",
-  description: "AutoEscrow V2 marketplace and wallet-authenticated workflow with explainable matching, versioned agreements, and a simulated escrow ledger.",
+  description: "AutoEscrow V2 marketplace and session-scoped workflow with explainable matching, versioned agreements, and a simulated escrow ledger.",
   icons: {
     icon: [{ url: "/branding/autoescrow-favicon.jpg", type: "image/jpeg" }],
     apple: [{ url: "/branding/autoescrow-favicon.jpg", type: "image/jpeg" }],

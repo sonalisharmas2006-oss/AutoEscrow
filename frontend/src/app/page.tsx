@@ -319,10 +319,10 @@ export default function Home() {
                   Workspace note
                 </p>
                 <h2 className="mt-3 text-2xl font-semibold tracking-[-0.035em] text-white md:text-3xl">
-                  V2 wallet flow. Simulated escrow. Real backend rules.
+                  V2 scoped demo sessions. Simulated escrow. Real backend rules.
                 </h2>
                 <p className="mt-3 max-w-2xl text-sm font-normal leading-6 text-[#A0A9BC]">
-                  The live product uses wallet auth and the V2 API where available. Unsupported features remain clearly labelled as coming soon rather than appearing operational.
+                  The live prototype uses short-lived backend-issued demo sessions and the V2 API. Unsupported features remain clearly labelled as coming soon rather than appearing operational.
                 </p>
               </div>
               <LiquidLink
@@ -340,7 +340,7 @@ export default function Home() {
         {/* FOOTER */}
         <footer className="border-t border-white/10 bg-[#000000]/90 backdrop-blur-xl">
           <div className="mx-auto flex w-full max-w-7xl flex-col gap-4 px-6 pb-28 pt-8 text-sm font-normal text-[#888888] sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:px-12">
-            <span>Auto Escrow · V2 wallet workflow</span>
+            <span>Auto Escrow · V2 demo workflow</span>
             <div className="flex gap-6">
               <Link href="/marketplace" className="transition-colors hover:text-white">
                 Marketplace
