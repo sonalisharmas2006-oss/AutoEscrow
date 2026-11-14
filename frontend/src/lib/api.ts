@@ -914,6 +914,26 @@ export const autoEscrowApi = {
     return request<ApiSubmission[]>(`/jobs/${path(jobId)}/submissions`);
   },
 
+  getEscrowSubmissions(escrowId: number | string) {
+    return request<ApiSubmission[]>(`/escrows/${path(escrowId)}/submissions`);
+  },
+
+  createEscrowSubmission(escrowId: number | string, payload: ApiSubmissionCreateRequest) {
+    return request<ApiSubmission>(`/escrows/${path(escrowId)}/submissions`, { method: "POST", body: payload });
+  },
+
+  demoExecuteEscrow(escrowId: number | string) {
+    return request<Record<string, unknown>>(`/escrows/${path(escrowId)}/demo-execute`, { method: "POST" });
+  },
+
+  reviewSubmission(submissionId: number | string, decision: "approve" | "reject", note: string) {
+    return request<ApiSubmission>(`/submissions/${path(submissionId)}/review`, { method: "POST", body: { decision, note } });
+  },
+
+  createSubmissionDispute(submissionId: number | string, payload: Record<string, unknown>) {
+    return request<ApiDispute>(`/submissions/${path(submissionId)}/disputes`, { method: "POST", body: payload });
+  },
+
   getLedger(escrowId: number | string) {
     return request<ApiLedgerEntry[]>(`/escrows/${path(escrowId)}/ledger`);
   },
