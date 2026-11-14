@@ -786,9 +786,8 @@ export const autoEscrowApi = {
   listJobs(params: Record<string, string | number | undefined> = {}, options: { public?: boolean; session?: "required" | "optional" } = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    void options;
     const endpoint = "/jobs";
-    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then(normalizeApiList);
+    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`, { public: options.public }).then(normalizeApiList);
   },
 
   getJob(jobId: number | string) {
