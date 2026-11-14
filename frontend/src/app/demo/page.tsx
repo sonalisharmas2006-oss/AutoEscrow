@@ -2,15 +2,14 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck, Wallet } from "lucide-react";
+import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgent, ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiJobEvent, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiJobEvent, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
 const steps=["Define job","Match agents","Select agent","Accept agreement","Fund simulated escrow"];
 const futureDate=()=>new Date(Date.now()+7*86400000).toISOString().slice(0,16);
 export default function GuidedWorkflowPage(){
  const [step,setStep]=useState(0);
- const [agents,setAgents]=useState<ApiAgent[]>([]);
  const [job,setJob]=useState<ApiJob|null>(null);
  const [matches,setMatches]=useState<ApiMatchRun|null>(null);
  const [selected,setSelected]=useState<ApiMatchCandidate|null>(null);
@@ -22,10 +21,10 @@ export default function GuidedWorkflowPage(){
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
  const [authenticated,setAuthenticated]=useState(false);
- useEffect(()=>{setAuthenticated(Boolean(authState.getDemoSessionToken()));api.listMarketplaceAgents({status:"active",limit:100,skip:0}).then(r=>setAgents(r.items)).catch(()=>setAgents([]));},[]);
+ useEffect(()=>{setAuthenticated(Boolean(authState.getDemoSessionToken()));},[]);
  const available=useMemo(()=>matches?.candidates??matches?.matches??[],[matches]);
  async function run(action:()=>Promise<void>){setBusy(true);setError("");setNotice("");try{await action();}catch(e){setError(e instanceof Error?e.message:"The API request failed. No local success state was recorded.");}finally{setBusy(false);}}
- async function createJob(){if(!authenticated){setError("Connect your wallet and complete sign-in in Settings before creating a job.");return;}await run(async()=>{const created=await api.createJob({title:form.title.trim(),description:form.description.trim(),task_category:form.category.trim(),required_skills:form.skills.split(",").map(x=>x.trim()).filter(Boolean),expected_output:form.output.trim(),acceptance_criteria:form.criteria.split("\n").map(x=>x.trim()).filter(Boolean),budget:form.budget,currency:form.currency,deadline:new Date(form.deadline).toISOString(),additional_instructions:"Created from the supported AutoEscrow V2 frontend workflow."});setJob(created);setStep(1);setNotice("Job saved by the backend.");});}
+ async function createJob(){if(!authenticated){setError("Start a backend demo session in Settings before creating a job.");return;}await run(async()=>{const created=await api.createJob({title:form.title.trim(),description:form.description.trim(),task_category:form.category.trim(),required_skills:form.skills.split(",").map(x=>x.trim()).filter(Boolean),expected_output:form.output.trim(),acceptance_criteria:form.criteria.split("\n").map(x=>x.trim()).filter(Boolean),budget:form.budget,currency:form.currency,deadline:new Date(form.deadline).toISOString(),additional_instructions:"Created from the supported AutoEscrow V2 frontend workflow."});setJob(created);setStep(1);setNotice("Job saved by the backend.");});}
  async function computeMatches(){if(!job)return;await run(async()=>{const result=await api.computeMatches(job.id);setMatches(result);setStep(2);setNotice("Matching results loaded from the backend.");});}
  async function chooseAgent(){if(!job||!selected)return;await run(async()=>{const updated=await api.selectAgent(job.id,selected.agent_id,matches?.run_id);setJob(updated);const proposal=await api.createAgreement(job.id,{proposed_budget:form.budget,proposed_deadline:new Date(form.deadline).toISOString(),currency:form.currency,terms:{scope:job.description,expected_deliverable:form.output,acceptance_criteria:form.criteria.split("\n").map(x=>x.trim()).filter(Boolean),verification_method:"Verification is not enabled in this release; the criteria are recorded as agreement terms.",cancellation_conditions:"Subject to the accepted agreement and backend job state.",dispute_conditions:"Dispute handling is not enabled in this frontend release."},rationale:"Proposal created through the AutoEscrow V2 workflow."});setAgreement(proposal);setStep(3);setNotice("Agent selection and agreement proposal persisted.");});}
  async function accept(){if(!agreement)return;await run(async()=>{const accepted=await api.acceptAgreement(agreement.id,{});setAgreement(accepted);setStep(4);setNotice("Agreement acceptance recorded by the backend.");});}
@@ -34,7 +33,7 @@ export default function GuidedWorkflowPage(){
  return <main className="min-h-screen bg-transparent px-5 pb-32 pt-14 text-white sm:px-8"><div className="mx-auto max-w-6xl">
   <header className="mb-8"><p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Supported V2 workflow · M0–M3</p><h1 className="mt-3 text-4xl font-bold">Guided Job Setup</h1><p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">Create a real backend job, inspect explainable agent matches, select an eligible agent, accept versioned terms, and record simulated escrow funding. Agent execution, verification and dispute resolution are intentionally out of scope here.</p></header>
   <div className="mb-7 grid gap-2 sm:grid-cols-5">{steps.map((label,i)=><div key={label} className={`rounded-xl border p-3 text-xs ${i<step?"border-white/25 bg-white/10":i===step?"border-white/35 bg-white/[0.08]":"border-white/10 bg-white/[0.025]"}`}><p className="text-neutral-500">STEP 0{i+1}</p><p className="mt-1 font-semibold text-white">{label}</p>{i<step&&<CheckCircle2 size={14} className="mt-2"/>}</div>)}</div>
-  {!authenticated&&<section className="mb-5 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"><div className="flex items-center gap-2 font-semibold"><Wallet size={16}/> Wallet sign-in required</div><p className="mt-2">Connect MetaMask and complete backend sign-in before creating or changing job records.</p><Link href="/settings" className="mt-3 inline-block underline">Open wallet settings →</Link></section>}
+  {!authenticated&&<section className="mb-5 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-4 text-sm text-amber-100"><div className="flex items-center gap-2 font-semibold"><LockKeyhole size={16}/> Demo session required</div><p className="mt-2">Start a short-lived backend-issued demo session before creating or changing job records. No wallet signature is required for this release.</p><Link href="/settings" className="mt-3 inline-block underline">Open session settings →</Link></section>}
   {error&&<div role="alert" className="mb-5 rounded-xl border border-red-400/30 bg-red-400/[0.06] p-4 text-sm text-red-200">{error}</div>}
   {notice&&<div role="status" className="mb-5 rounded-xl border border-white/15 bg-white/[0.05] p-4 text-sm text-neutral-200">{notice}</div>}
   {step===0&&<section className="rounded-2xl border border-white/10 bg-white/[0.035] p-5 sm:p-7"><h2 className="text-xl font-semibold">Define your job</h2><p className="mt-1 text-sm text-neutral-400">Only fields supported by the V2 job contract are submitted.</p><div className="mt-5 grid gap-4 sm:grid-cols-2">
