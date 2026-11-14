@@ -100,8 +100,8 @@ export interface ApiMatchReason {
 }
 
 export interface ApiMatchCandidate {
-  agent_id: string | number; agent_name: string; agent?: ApiAgent; score: number;
-  reasons?: ApiMatchReason[]; explanation: string; eligible: boolean;
+  agent_id: string | number; agent_name: string; agent: ApiAgent; score: number;
+  reasons: ApiMatchReason[]; explanation: string; eligible: boolean;
   matched_skills?: string[]; missing_skills?: string[]; breakdown?: Record<string, unknown>;
   warnings?: string[]; exclusion_reasons?: string[];
 }
