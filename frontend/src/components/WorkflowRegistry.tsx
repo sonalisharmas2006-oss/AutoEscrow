@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Workspace from "./layout/Workspace";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiJob, ApiLedgerBalance, ApiLedgerHistory, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiLedgerBalance, ApiLedgerHistory, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
 type View = "dashboard" | "jobs" | "agreements" | "escrow" | "execution" | "verification" | "disputes" | "history" | "risk";
 const titles: Record<View, [string, string]> = {
@@ -162,7 +162,7 @@ function DisputeQueue() {
   const [rationale,setRationale]=useState<Record<string,string>>({});
   const [busy,setBusy]=useState<string|null>(null);
   const [message,setMessage]=useState("");
-  const user=api.auth.getUser();
+  const user=authState.getUser();
   const canResolve=["ADMIN","ARBITRATOR","admin","arbitrator"].includes(user?.role??"");
   const refresh=async()=>{setLoading(true);setError("");try{setItems(await api.listDisputes("open"));}catch(e){setError(e instanceof Error?e.message:"Could not load open disputes.");}finally{setLoading(false);}};
   useEffect(()=>{void refresh();},[]);
