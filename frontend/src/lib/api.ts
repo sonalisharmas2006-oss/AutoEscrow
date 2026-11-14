@@ -117,7 +117,11 @@ export interface ApiMatchRun {
 export interface ApiAgreement {
   id: string | number;
   job_id: string | number;
-  agent_id: string | number;
+  requester_agent_id?: number;
+  executor_agent_id?: number;
+  agent_id?: string | number;
+  proposed_budget?: string | number | null;
+  proposed_deadline?: string | null;
   status: string;
   terms: Record<string, unknown>;
   terms_hash: string | null;
@@ -141,7 +145,15 @@ export interface ApiAgreement {
 
 export interface ApiEscrow {
   id: string | number;
+  job_id?: string | number;
   agreement_id: string | number;
+  accepted_agreement_version?: number | null;
+  agreement_version?: number | null;
+  funded_amount?: string | null;
+  funding_state?: string;
+  provider_reference?: string | null;
+  released_at?: string | null;
+  settled_at?: string | null;
   status: string;
   amount: string;
   currency: string;
@@ -149,6 +161,9 @@ export interface ApiEscrow {
   escrow_locked: string;
   funded_at: string | null;
   created_at: string;
+  updated_at?: string;
+  amount?: string;
+  currency?: string;
   updated_at: string;
   accepted_amount: string;
   accepted_currency: string;
