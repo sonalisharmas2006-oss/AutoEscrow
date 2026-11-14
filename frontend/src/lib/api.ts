@@ -503,6 +503,7 @@ type RequestOptions = {
   body?: unknown;
   headers?: Record<string, string>;
   skipAuthRefresh?: boolean;
+  public?: boolean;
 };
 
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
@@ -516,7 +517,7 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
     const accessToken = authState.getAccessToken();
     if (accessToken) headers.set("Authorization", `Bearer ${accessToken}`);
   }
-  const demoSessionToken = authState.getDemoSessionToken();
+  const demoSessionToken = options.public ? null : authState.getDemoSessionToken();
   if (demoSessionToken) headers.set("X-Demo-Session", demoSessionToken);
 
   let response = await fetch(url, {
@@ -681,7 +682,7 @@ export const autoEscrowApi = {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
     const endpoint = options.public ? "/marketplace/agents" : "/agents";
-    return request<ApiList<ApiAgent> | ApiAgent[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then((response) => ({
+    return request<ApiList<ApiAgent> | ApiAgent[]>(`${endpoint}${query.size ? `?${query}` : ""}`, { public: options.public }).then((response) => ({
       items: normalizeListResponse(response),
       total: Array.isArray(response) ? response.length : (response as ApiList<ApiAgent> | null)?.total ?? 0,
     } satisfies ApiList<ApiAgent>));
@@ -690,7 +691,7 @@ export const autoEscrowApi = {
   listMyAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/agents${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true });
   },
 
   getAgent(agentId: number | string, options: { public?: boolean } = {}) {
@@ -717,7 +718,7 @@ export const autoEscrowApi = {
   },
 
   getMarketplaceAgent(agentId: number | string) {
-    return request<ApiAgent>(`/agents/${path(agentId)}`);
+    return request<ApiAgent>(`/marketplace/agents/${path(agentId)}`, { public: true });
   },
 
   createJob(payload: ApiJobCreateRequest) {
