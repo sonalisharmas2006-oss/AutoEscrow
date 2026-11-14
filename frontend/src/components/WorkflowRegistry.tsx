@@ -85,7 +85,11 @@ export default function WorkflowRegistry({ view }: { view: View }) {
   ), [rows, filter]);
   const detail = rows.find((row) => String(row.job.id) === String(selected));
 
-  if (["execution", "verification", "disputes", "risk"].includes(view)) {
+  if (view === "disputes") {
+    return <DisputeQueue />;
+  }
+
+  if (["execution", "verification", "risk"].includes(view)) {
     return <Workspace title={titles[view][0]} intro={titles[view][1]}>
       <section className="record-panel">
         <div className="warning-panel" role="status">
@@ -149,6 +153,45 @@ export default function WorkflowRegistry({ view }: { view: View }) {
           </>}
     </Workspace>
   );
+}
+
+function DisputeQueue() {
+  const [items,setItems]=useState<import("@/lib/api").ApiDispute[]>([]);
+  const [loading,setLoading]=useState(true);
+  const [error,setError]=useState("");
+  const [rationale,setRationale]=useState<Record<string,string>>({});
+  const [busy,setBusy]=useState<string|null>(null);
+  const [message,setMessage]=useState("");
+  const user=api.auth.getUser();
+  const canResolve=["ADMIN","ARBITRATOR","admin","arbitrator"].includes(user?.role??"");
+  const refresh=async()=>{setLoading(true);setError("");try{setItems(await api.listDisputes("open"));}catch(e){setError(e instanceof Error?e.message:"Could not load open disputes.");}finally{setLoading(false);}};
+  useEffect(()=>{void refresh();},[]);
+  async function resolve(id:string|number,resolution:"release"|"refund"){
+    setBusy(String(id));setError("");setMessage("");
+    try{const result=await api.resolveDispute(id,resolution,rationale[String(id)]??"");
+      setItems(current=>current.filter(item=>item.id!==id));
+      setMessage("Dispute #"+result.id+" resolved by the backend.");
+    }catch(e){setError(e instanceof Error?e.message:"Dispute resolution failed.");}
+    finally{setBusy(null);}
+  }
+  return <Workspace title="Dispute management queue" intro="Open disputes returned by the production API. Resolution is available only to authorized ADMIN/ARBITRATOR accounts.">
+    <section className="record-panel">
+      <div className="toolbar"><span>{items.length} open disputes</span><LiquidButton type="button" onClick={()=>void refresh()} disabled={loading} className="px-4 py-2 text-sm">Refresh queue</LiquidButton></div>
+      {loading&&<p role="status" className="empty-panel">Loading open disputes…</p>}
+      {error&&<div role="alert" className="error-panel">{error}</div>}
+      {message&&<div role="status" className="warning-panel">{message}</div>}
+      {!loading&&items.length===0&&<p className="empty-panel">No open disputes were returned.</p>}
+      {items.map(item=><article key={item.id} className="registry-row"><div>
+        <strong>Dispute #{item.id} · {item.status}</strong><p>{item.category} · {item.reason}</p><p>{item.description}</p>
+        <p className="text-xs text-neutral-500">Job #{item.job_id} · Escrow #{item.escrow_id??"—"}</p>
+        {canResolve?<><label className="mt-3 block">Resolution rationale<textarea rows={3} value={rationale[String(item.id)]??""} onChange={e=>setRationale(old=>({...old,[String(item.id)]:e.target.value}))}/></label>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <LiquidButton type="button" disabled={busy!==null||(rationale[String(item.id)]??"").trim().length<10} onClick={()=>void resolve(item.id,"release")} className="px-3 py-2">Resolve: release</LiquidButton>
+            <LiquidButton type="button" disabled={busy!==null||(rationale[String(item.id)]??"").trim().length<10} onClick={()=>void resolve(item.id,"refund")} className="px-3 py-2">Resolve: refund</LiquidButton>
+          </div></>:<p className="mt-3 text-xs text-amber-200">Read-only: sign in with an authorized ADMIN or ARBITRATOR account to resolve disputes.</p>}
+      </div></article>)}
+    </section>
+  </Workspace>;
 }
 
 function JobRecord({ row, view }: { row: Row; view: View }) {
