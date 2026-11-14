@@ -111,9 +111,7 @@ export default function GuidedWorkflowPage() {
   async function accept() {
     if (!agreement) return;
     await run(async () => {
-      const accepted = await api.acceptAgreement(agreement.id, {
-        version_number: agreement.current_version_number,
-      });
+      const accepted = await api.acceptAgreement(agreement.id);
       setAgreement(accepted);
       if (accepted.status === "accepted") {
         setStep(4); setNotice("Your authenticated acceptance was recorded by the backend. Funding can proceed.");
@@ -164,7 +162,7 @@ export default function GuidedWorkflowPage() {
           </p>
         </header>
 
-        <div className="mb-7 grid gap-2 sm:grid-cols-5" aria-label="Workflow progress">
+        <div className="mb-7 grid gap-2 sm:grid-cols-7" aria-label="Workflow progress">
           {steps.map((label, index) => (
             <div key={label} aria-current={index === step ? "step" : undefined} className={`rounded-xl border p-3 text-xs ${index < step ? "border-white/25 bg-white/10" : index === step ? "border-white/35 bg-white/[0.08]" : "border-white/10 bg-white/[0.025]"}`}>
               <p className="text-neutral-500">STEP 0{index + 1}</p>
@@ -306,7 +304,7 @@ export default function GuidedWorkflowPage() {
             )}
             {step === 5 && escrow && (
               <div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5">
-                <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> M0–M3 workflow complete</div>
+                <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> Escrow settlement status</div>
                 <p className="mt-2 text-sm text-neutral-300">Escrow #{escrow.id} · {escrow.status} · {formatMoney(escrow.amount, escrow.currency)}</p>
                 <p className="mt-2 text-xs text-neutral-400">This is a simulated VCR ledger record. No real payment, blockchain transaction, agent execution, verification, or dispute action occurred.</p>
                 <p className="mt-4 text-xs text-neutral-500">The current backend does not expose a per-job audit-history endpoint. The account ledger is available in the dashboard.</p>
@@ -315,7 +313,7 @@ export default function GuidedWorkflowPage() {
             )}
           </section>
         )}
-        <p className="mt-6 text-xs leading-5 text-neutral-500">M4 agent execution, verification, and dispute resolution are not exposed by the current backend. The interface will not claim those actions have happened until supported and verified by the backend.</p>
+        <p className="mt-6 text-xs leading-5 text-neutral-500">Execution is explicitly labelled deterministic sample output; no real autonomous agent or external AI model is invoked.</p>
       </div>
     </main>
   );
