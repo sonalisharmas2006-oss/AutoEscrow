@@ -83,12 +83,6 @@ export interface ApiJob {
   selected_match_run_id: string | null;
   selected_matching_score: string | null;
   selected_scoring_version: string | null;
-  task_category: string;
-  expected_output: string;
-  acceptance_criteria: string[];
-  additional_instructions: string | null;
-  budget: string;
-  requirements: Record<string, unknown>;
 }
 
 export interface ApiMatchReason {
@@ -158,16 +152,6 @@ export interface ApiAgreement {
   acceptances: ApiAgreementAcceptance[];
   created_at: string;
   updated_at: string;
-  terms?: Record<string, unknown>;
-  terms_hash?: string | null;
-  proposed_budget?: string | null;
-  proposed_deadline?: string | null;
-  amount?: string;
-  currency?: string;
-  proposal_version?: number;
-  accepted_version?: number | null;
-  accepted_at?: string | null;
-  proposal_history?: Record<string, unknown>[];
 }
 
 export interface ApiEscrow {
@@ -700,13 +684,12 @@ const normalizeMatchRun = (response: ApiMatchRun): ApiMatchRun => {
 };
 
 export const isAgreementFullyAccepted = (agreement: ApiAgreement): boolean => {
-  const statusAccepted = ["accepted", "active"].includes(String(agreement.status).toLowerCase());
-  const version = agreement.current_version_number ?? agreement.proposal_version;
-  const acceptedVersion = agreement.accepted_version ?? version;
-  const acceptances = Array.isArray(agreement.acceptances) ? agreement.acceptances : [];
-  const distinctParties = new Set(acceptances.map((item) => item.party || item.user_id).filter(Boolean));
-  const recordsConfirmBothParties = acceptances.length === 0 || distinctParties.size >= 2;
-  return statusAccepted && acceptedVersion != null && acceptedVersion === version && recordsConfirmBothParties;
+  const version = agreement.current_version_number;
+  const versionAcceptances = (agreement.acceptances ?? []).filter((item) => item.version_number === version);
+  const distinctParties = new Set(versionAcceptances.map((item) => item.party || item.user_id).filter(Boolean));
+  return ["accepted", "active"].includes(String(agreement.status).toLowerCase()) &&
+    version > 0 &&
+    distinctParties.size >= 2;
 };
 
 export const autoEscrowApi = {
