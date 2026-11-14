@@ -268,10 +268,11 @@ function JobRecord({ row, view }: { row: Row; view: View }) {
     {["jobs", "agreements", "dashboard"].includes(view) && <>
       <h3>Agreement</h3>
       {agreement ? <>
-        <p>#{agreement.id} · {agreement.status} · version {agreement.current_version_number}</p>
-        <p>Accepted parties: {agreement.acceptances.map((item) => item.party).join(", ") || "No acceptances returned"}</p>
-        <pre>{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
-        <details><summary>Version history</summary><pre>{JSON.stringify(agreement.versions, null, 2)}</pre></details>
+        <p>#{agreement.id} · {agreement.status} · version {agreement.current_version_number ?? agreement.proposal_version ?? 1}</p>
+        <p>Accepted version: {agreement.accepted_version ?? "Not accepted"}</p>
+        <p>Acceptance records: {(agreement.acceptances ?? []).length || "Not supplied by this backend contract"}</p>
+        <pre>{JSON.stringify(agreement.current_version?.terms ?? agreement.terms ?? {}, null, 2)}</pre>
+        <details><summary>Version history</summary><pre>{JSON.stringify(agreement.versions ?? [], null, 2)}</pre></details>
       </> : <p>No agreement has been returned for this job.</p>}
     </>}
     {["jobs", "escrow", "dashboard"].includes(view) && <>
