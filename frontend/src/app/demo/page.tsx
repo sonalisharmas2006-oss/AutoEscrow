@@ -4,9 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiExecution, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, ApiVerification, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
 
-const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow"];
+const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow", "Run demo execution", "Submit & verify"]
 const futureDate = () => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
 const splitLines = (value: string) => value.split("\n").map((item) => item.trim()).filter(Boolean);
 const splitTags = (value: string) => value.split(",").map((item) => item.trim()).filter(Boolean);
@@ -18,6 +18,13 @@ export default function GuidedWorkflowPage() {
   const [selected, setSelected] = useState<ApiMatchCandidate | null>(null);
   const [agreement, setAgreement] = useState<ApiAgreement | null>(null);
   const [escrow, setEscrow] = useState<ApiEscrow | null>(null);
+  const [execution, setExecution] = useState<ApiExecution | null>(null);
+  const [submissions, setSubmissions] = useState<ApiSubmission[]>([]);
+  const [verification, setVerification] = useState<ApiVerification | null>(null);
+  const [output, setOutput] = useState("Sample deliverable: processed by the deterministic local demo executor. Illustrative output only.");
+  const [outputNotes, setOutputNotes] = useState("Deterministic Demo Execution — Sample Output");
+  const [disputeReason, setDisputeReason] = useState("");
+  const [disputeDescription, setDisputeDescription] = useState("");
   const [form, setForm] = useState({
     title: "",
     description: "",
@@ -60,16 +67,11 @@ export default function GuidedWorkflowPage() {
     }
     await run(async () => {
       const created = await api.createJob({
-        title: form.title.trim(),
-        description: form.description.trim(),
-        category: form.category,
-        required_skills: splitTags(form.skills),
-        required_capabilities: splitTags(form.capabilities),
-        budget_amount: form.budget,
-        currency: "VCR",
+        title: form.title.trim(), description: form.description.trim(), task_category: form.category,
+        required_skills: splitTags(form.skills), expected_output: splitLines(form.deliverables).join("\n"),
+        acceptance_criteria: splitLines(form.criteria), budget: form.budget, currency: "VCR",
         deadline: new Date(form.deadline).toISOString(),
-        expected_deliverables: splitLines(form.deliverables),
-        status: "open",
+        additional_instructions: splitLines(form.responsibilities).join("\n"),
       });
       setJob(created);
       setStep(1);
@@ -91,18 +93,12 @@ export default function GuidedWorkflowPage() {
   async function chooseAgent() {
     if (!job || !selected) return;
     await run(async () => {
-      const proposal = await api.createAgreement({
-        job_id: String(job.id),
-        agent_id: String(selected.agent_id),
-        terms: {
-          scope: job.description,
-          deliverables: splitLines(form.deliverables),
-          budget_amount: form.budget,
-          currency: "VCR",
-          deadline: new Date(form.deadline).toISOString(),
-          responsibilities: splitLines(form.responsibilities),
-          acceptance_conditions: splitLines(form.criteria),
-        },
+      await api.selectJobAgent(job.id, selected.agent_id, matches?.run_id);
+      const proposal = await api.createAgreement(job.id, {
+        proposed_budget: form.budget, proposed_deadline: new Date(form.deadline).toISOString(), currency: "VCR",
+        terms: { scope: job.description, expected_deliverable: splitLines(form.deliverables).join("\n"),
+          acceptance_criteria: splitLines(form.criteria), instructions: splitLines(form.responsibilities).join("\n"),
+          verification_method: "Deterministic checks against the accepted agreement criteria" },
       });
       setAgreement(proposal);
       setStep(3);
@@ -117,54 +113,40 @@ export default function GuidedWorkflowPage() {
         version_number: agreement.current_version_number,
       });
       setAgreement(accepted);
-      if (accepted.status === "active") {
-        setStep(4);
-        setNotice("Both parties have accepted the agreement. Simulated escrow funding is now available.");
-      } else {
-        setStep(3);
-        setNotice("Your acceptance was recorded. The agreement is still awaiting the other party; escrow funding remains blocked until the backend marks it active.");
-      }
+      if (accepted.status === "accepted") {
+        setStep(4); setNotice("Your authenticated acceptance was recorded by the backend. Funding can proceed.");
+      } else { setStep(3); setNotice("The backend did not mark this agreement accepted. Funding remains blocked."); }
     });
   }
 
   async function fund() {
     if (!job || !agreement) return;
-    if (agreement.status !== "active") {
-      setError("Escrow cannot be created until both parties have accepted the current agreement version.");
-      return;
+    if (agreement.status !== "accepted" || agreement.accepted_version == null) {
+      setError("Escrow funding requires an accepted agreement version."); return;
     }
     await run(async () => {
-      const created = await api.createEscrow(agreement.id);
-      const funded = await api.fundEscrow(created.id, {
-        idempotency_key: `autoescrow-${job.id}-${created.id}-fund-v1`,
-      });
+      const funded = await api.createEscrow(job.id, `autoescrow-job-${job.id}-fund-v1`);
       setEscrow(funded);
-      const [latestJob, latestAgreement, latestEscrow] = await Promise.all([
-        api.getJob(job.id),
-        api.getAgreementForJob(job.id),
-        api.getEscrowForJob(job.id),
+      const [latestJob, latestAgreement, latestEscrow, latestExecution] = await Promise.all([
+        api.getJob(job.id), api.getAgreementForJob(job.id), api.getEscrowForJob(job.id), api.getExecution(job.id),
       ]);
-      setJob(latestJob);
-      setAgreement(latestAgreement);
-      setEscrow(latestEscrow);
-      setStep(5);
-      setNotice("Simulated VCR escrow funding was persisted by the backend. No real funds moved.");
+      setJob(latestJob); setAgreement(latestAgreement); setEscrow(latestEscrow); setExecution(latestExecution);
+      setStep(5); setNotice("Simulated VCR escrow funding was persisted by the backend. No real funds moved.");
     });
   }
 
   async function refresh() {
     if (!job) return;
     await run(async () => {
-      const [latestJob, latestAgreement, latestEscrow] = await Promise.all([
-        api.getJob(job.id),
-        api.getAgreementForJob(job.id),
-        api.getEscrowForJob(job.id),
+      const [latestJob, latestAgreement, latestEscrow, latestExecution, latestSubmissions, latestVerification] = await Promise.all([
+        api.getJob(job.id), api.getAgreementForJob(job.id), api.getEscrowForJob(job.id),
+        api.getExecution(job.id), api.getSubmissions(job.id), api.getVerification(job.id),
       ]);
-      setJob(latestJob);
-      setAgreement(latestAgreement);
-      setEscrow(latestEscrow);
-      if (latestEscrow) setStep(5);
-      else if (latestAgreement?.status === "active") setStep(4);
+      setJob(latestJob); setAgreement(latestAgreement); setEscrow(latestEscrow); setExecution(latestExecution);
+      setSubmissions(latestSubmissions); setVerification(latestVerification);
+      if (latestVerification || latestSubmissions.length) setStep(6);
+      else if (latestEscrow) setStep(5);
+      else if (latestAgreement?.status === "accepted") setStep(4);
       else if (latestAgreement) setStep(3);
     });
   }
@@ -176,7 +158,7 @@ export default function GuidedWorkflowPage() {
           <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">Supported V2 workflow · job, matching, agreement and ledger</p>
           <h1 className="mt-3 text-4xl font-bold">Guided Job Setup</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-400">
-            Create a backend job, compare explainable agent matches, create and accept versioned terms, then fund a simulated VCR escrow. Agent execution, verification and disputes are not exposed by the current backend contract.
+            Create a backend job, match an agent, accept the agreement, fund simulated VCR escrow, then use the deterministic demo executor and backend verification.
           </p>
         </header>
 
