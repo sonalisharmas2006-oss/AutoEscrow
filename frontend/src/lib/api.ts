@@ -61,7 +61,7 @@ export interface ApiAgent {
 }
 
 export interface ApiJob {
-  id: string | number;
+  id: string;
   title: string;
   description: string;
   category: string;
@@ -77,9 +77,9 @@ export interface ApiJob {
   updated_at: string;
   metadata: Record<string, unknown>;
   public_id: string;
-  requester_agent_id: number | null;
-  executor_agent_id: number | null;
-  selected_agent_id: number | null;
+  requester_agent_id: string | number | null;
+  executor_agent_id: string | number | null;
+  selected_agent_id: string | number | null;
   selected_match_run_id: string | null;
   selected_matching_score: string | null;
   selected_scoring_version: string | null;
@@ -99,7 +99,7 @@ export interface ApiMatchCandidate {
   agent_name: string;
   agent: ApiAgent;
   score: number;
-  reasons: ApiMatchReason[];
+  reasons: Array<ApiMatchReason | string>;
   explanation?: string;
   eligible?: boolean;
   matched_skills?: string[];
@@ -208,7 +208,7 @@ export interface ApiLedgerHistory {
 }
 
 export interface ApiSubmission {
-  id: string | number;
+  id: string;
   escrow_id: string;
   job_id: string;
   attempt: number;
@@ -347,9 +347,9 @@ export interface ApiAgreementTerms {
 }
 
 export interface ApiDispute {
-  id: string | number;
-  job_id: string | number;
-  escrow_id?: string | number | null;
+  id: string;
+  job_id: string;
+  escrow_id?: string | null;
   category: string;
   status: string;
   reason: string;
