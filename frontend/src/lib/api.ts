@@ -829,16 +829,6 @@ export const autoEscrowApi = {
     return request<ApiMatchRun>(`/matching/jobs/${path(jobId)}`, { method: "POST" }).then(normalizeMatchRun);
   },
 
-  selectJobAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return request<ApiJob>(`/jobs/${path(jobId)}/matches/${path(agentId)}/select`, {
-      method: "POST", body: runId ? { run_id: runId } : {},
-    });
-  },
-
-  selectAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return autoEscrowApi.selectJobAgent(jobId, agentId, runId);
-  },
-
   createAgreement(payload: ApiAgreementCreateRequest) {
     return request<ApiAgreement>("/agreements", { method: "POST", body: payload });
   },
@@ -911,24 +901,8 @@ export const autoEscrowApi = {
     return autoEscrowApi.getEscrowForAgreement(agreement.id);
   },
 
-  getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiExecution>(`/jobs/${path(jobId)}/execution`);
-  },
-
-  getVerification(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiVerification | null>(`/jobs/${path(jobId)}/verification`);
-  },
-
-  startExecution(jobId: number | string) {
-    return request<ApiExecution>(`/jobs/${path(jobId)}/start`, { method: "POST" });
-  },
-
-  submitJob(jobId: number | string, payload: ApiSubmissionCreateRequest) {
-    return request<ApiSubmission>(`/jobs/${path(jobId)}/submit`, { method: "POST", body: payload });
-  },
-
-  verifyJob(jobId: number | string) {
-    return request<ApiVerification>(`/jobs/${path(jobId)}/verify`, { method: "POST" });
+  submitJob(escrowId: number | string, payload: ApiSubmissionCreateRequest) {
+    return request<ApiSubmission>(`/escrows/${path(escrowId)}/submissions`, { method: "POST", body: payload });
   },
 
   getLedgerBalance() {
