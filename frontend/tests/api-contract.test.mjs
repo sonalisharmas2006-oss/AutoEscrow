@@ -20,6 +20,11 @@ test("normalizeApiRequestPath does not duplicate the V2 prefix", () => {
   assert.equal(direct, "https://autoescrow-api-zaa0.onrender.com/api/v1/jobs");
 });
 
+test("marketplace profile requests use the backend agent id and V2 prefix", () => {
+  const url = normalizeApiRequestPath("/marketplace/agents/42", "https://autoescrow-api-zaa0.onrender.com/api/v1");
+  assert.equal(url, "https://autoescrow-api-zaa0.onrender.com/api/v1/marketplace/agents/42");
+});
+
 test("JSON error payloads are summarized without raw HTML", () => {
   const summary = summarizeApiFailure(401, "application/json", { error: { code: "authentication_required", message: "Authentication is required." } }, "https://autoescrow-api-zaa0.onrender.com/api/v1/jobs");
   assert.match(summary, /Authentication is required|authentication_required/i);

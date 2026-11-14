@@ -39,6 +39,7 @@ export interface ApiAgent {
   name: string;
   description?: string;
   category?: string;
+  owner_display_name?: string | null;
   capabilities?: string[];
   skills?: string[];
   supported_task_types?: string[];
@@ -56,6 +57,7 @@ export interface ApiAgent {
   estimated_completion_minutes?: number | null;
   supported_output_formats?: string[];
   created_at?: string;
+  updated_at?: string;
 }
 
 export interface ApiJob {
