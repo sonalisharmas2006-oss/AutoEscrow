@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, authState, autoEscrowApi as api, formatMoney, isAgreementFullyAccepted } from "@/lib/api";
 
 const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow", "Run demo execution", "Submit & verify"]
 const futureDate = () => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
@@ -123,10 +123,7 @@ export default function GuidedWorkflowPage() {
       await api.acceptAgreement(agreement.id, version);
       const latest = await api.getAgreement(agreement.id);
       setAgreement(latest);
-      const acceptanceParties = new Set((latest.acceptances ?? []).map((item) => item.party || item.user_id).filter(Boolean));
-      const hasBothParties = latest.acceptances?.length ? acceptanceParties.size >= 2 : true;
-      const acceptedStatus = ["accepted", "active"].includes(String(latest.status).toLowerCase());
-      if (acceptedStatus && hasBothParties && (latest.accepted_version ?? latest.current_version_number) === version) {
+      if (isAgreementFullyAccepted(latest) && (latest.accepted_version ?? latest.current_version_number) === version) {
         setStep(4);
         setNotice("The backend confirms this agreement version is fully accepted. Simulated escrow funding is now available.");
       } else {
@@ -138,11 +135,7 @@ export default function GuidedWorkflowPage() {
 
   async function fund() {
     if (!job || !agreement) return;
-    const acceptanceParties = new Set((agreement.acceptances ?? []).map((item) => item.party || item.user_id).filter(Boolean));
-    const hasBothParties = agreement.acceptances?.length ? acceptanceParties.size >= 2 : true;
-    if (!["accepted", "active"].includes(String(agreement.status).toLowerCase()) ||
-        (agreement.accepted_version ?? agreement.current_version_number) !== agreement.current_version_number ||
-        !hasBothParties) {
+    if (!isAgreementFullyAccepted(agreement)) {
       setError("Escrow funding requires backend-confirmed acceptance of the current agreement version by both parties.");
       return;
     }
@@ -156,21 +149,21 @@ export default function GuidedWorkflowPage() {
       });
       const listed = await api.listEscrows({ limit: 100, offset: 0 });
       const persistedEscrow = listed.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? await api.getEscrow(fundedEscrow.id);
-      setEscrow(createdEscrow);
+      setEscrow(persistedEscrow);
       const [latestJob, latestAgreement, latestSubmissions] = await Promise.all([
         api.getJob(job.id),
         api.getAgreementForJob(job.id),
-        api.getEscrowSubmissions(createdEscrow.id),
+        api.getEscrowSubmissions(persistedEscrow.id),
       ]);
       setJob(latestJob);
       if (latestAgreement) setAgreement(latestAgreement);
       setSubmissions(latestSubmissions);
-      if (["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase())) {
+      if (["funded", "held", "active"].includes(String(persistedEscrow.status).toLowerCase())) {
         setStep(5);
         setNotice("The backend confirms the simulated VCR escrow is funded. No real funds moved.");
       } else {
         setStep(4);
-        setNotice(`Escrow was created, but its current backend status is ${createdEscrow.status}. The workflow has not marked funding complete.`);
+        setNotice(`Escrow was created, but its current backend status is ${persistedEscrow.status}. The workflow has not marked funding complete.`);
       }
     });
   }
@@ -294,9 +287,9 @@ export default function GuidedWorkflowPage() {
                 <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms ?? agreement.current_version?.terms ?? {}, null, 2)}</pre>
                 {step === 3 && (
                   <div className="mt-4">
-                    {["accepted", "active"].includes(String(agreement.status).toLowerCase()) && (agreement.acceptances?.length ?? 0) >= 2
-                      ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Both parties' acceptance records are present for this agreement.</p>
-                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend reports the agreement as accepted by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? 1} <ShieldCheck size={16} /></Action></>}
+                    {isAgreementFullyAccepted(agreement)
+                      ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">The backend confirms this agreement is accepted. You can proceed to simulated escrow funding.</p>
+                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend confirms acceptance of the current version by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? 1} <ShieldCheck size={16} /></Action></>}
                   </div>
                 )}
               </div>
