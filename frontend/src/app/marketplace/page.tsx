@@ -1,306 +1,148 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { Activity, ArrowLeft, ArrowUpRight, Filter, Hexagon, RefreshCw, Search, ShieldCheck, Terminal } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowLeft, ArrowUpRight, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Terminal } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgent, ApiList, autoEscrowApi } from "@/lib/api";
+import { ApiAgent, autoEscrowApi } from "@/lib/api";
 
-type AgentFilters = {
-  availability: string;
-  category: string;
-  status: string;
-};
+const PAGE_SIZE = 9;
+type SortMode = "name" | "price-low" | "price-high" | "recent";
 
-const emptyFilters: AgentFilters = { availability: "", category: "", status: "" };
-const asSearchText = (values: unknown[]) => values.filter((value): value is string => typeof value === "string").join(" ").toLowerCase();
-const displayList = (values: string[] | undefined) => values?.length ? values.join(", ") : "Not provided";
+function isDemoProfile(agent: ApiAgent) {
+  return agent.name.trim().toLowerCase().startsWith("demo") ||
+    agent.metadata?.profile_type === "demo" ||
+    agent.metadata?.is_demo === true;
+}
 
 export default function MarketplacePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const profileId = searchParams.get("agent");
   const [agents, setAgents] = useState<ApiAgent[]>([]);
+  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
-  const [filters, setFilters] = useState<AgentFilters>(emptyFilters);
-  const [error, setError] = useState<string | null>(null);
-  const [loaded, setLoaded] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const [profileId, setProfileId] = useState<string | null>(null);
+  const [category, setCategory] = useState("");
+  const [status, setStatus] = useState("active");
+  const [sort, setSort] = useState<SortMode>("name");
+  const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [profile, setProfile] = useState<ApiAgent | null>(null);
-  const [profileError, setProfileError] = useState<string | null>(null);
   const [profileLoading, setProfileLoading] = useState(false);
-  const [profileRetry, setProfileRetry] = useState(0);
+  const [profileError, setProfileError] = useState("");
 
-  useEffect(() => {
-    const syncProfileFromUrl = () => setProfileId(new URLSearchParams(window.location.search).get("agent"));
-    syncProfileFromUrl();
-    window.addEventListener("popstate", syncProfileFromUrl);
-    return () => window.removeEventListener("popstate", syncProfileFromUrl);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    setLoaded(false);
-    setError(null);
-    autoEscrowApi.listMarketplaceAgents({ limit: 100, offset: 0 }).then((response: ApiList<ApiAgent>) => {
-      if (active) setAgents(Array.isArray(response.items) ? response.items : []);
-    }).catch((caught: unknown) => {
-      if (active) setError(caught instanceof Error ? caught.message : "Unable to load registered agents.");
-    }).finally(() => {
-      if (active) setLoaded(true);
-    });
-    return () => { active = false; };
-  }, [retry]);
-
-  useEffect(() => {
-    if (!profileId) {
-      setProfile(null);
-      setProfileError(null);
-      setProfileLoading(false);
-      return;
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const result = await autoEscrowApi.listMarketplaceAgents({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        ...(status ? { status } : {}),
+        ...(category ? { category } : {}),
+        ...(search.trim() ? { search: search.trim() } : {}),
+      });
+      setAgents(Array.isArray(result.items) ? result.items : []);
+      setTotal(Number.isFinite(result.total) ? result.total : result.items.length);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Marketplace could not be loaded.");
+      setAgents([]);
+      setTotal(0);
+    } finally {
+      setLoading(false);
     }
+  }, [page, status, category, search]);
 
+  useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    if (!profileId) { setProfile(null); setProfileError(""); return; }
     let active = true;
-    setProfile(null);
-    setProfileError(null);
     setProfileLoading(true);
-    autoEscrowApi.getMarketplaceAgent(profileId).then((agent) => {
-      if (active) setProfile(agent);
-    }).catch((caught: unknown) => {
-      if (active) setProfileError(caught instanceof Error ? caught.message : "Unable to load this agent profile.");
-    }).finally(() => {
-      if (active) setProfileLoading(false);
-    });
+    setProfileError("");
+    autoEscrowApi.getMarketplaceAgent(profileId)
+      .then((value) => { if (active) setProfile(value); })
+      .catch((reason) => { if (active) setProfileError(reason instanceof Error ? reason.message : "Agent profile could not be loaded."); })
+      .finally(() => { if (active) setProfileLoading(false); });
     return () => { active = false; };
-  }, [profileId, profileRetry]);
+  }, [profileId]);
 
-  const options = useMemo(() => ({
-    availability: uniqueAgentValues(agents, (agent) => agent.availability),
-    category: uniqueAgentValues(agents, (agent) => [...(agent.category ? [agent.category] : []), ...(agent.task_categories ?? []), ...(agent.supported_task_types ?? [])]),
-    status: uniqueAgentValues(agents, (agent) => agent.status),
-  }), [agents]);
+  const categories = useMemo(() => Array.from(new Set(agents.flatMap((agent) => [
+    ...(agent.category ? [agent.category] : []),
+    ...(agent.task_categories ?? []),
+    ...(agent.supported_task_types ?? []),
+  ]))).sort((a, b) => a.localeCompare(b)), [agents]);
 
-  const visibleAgents = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return agents.filter((agent) => {
-      const searchable = asSearchText([
-        agent.name,
-        agent.description,
-        agent.category,
-        agent.owner_display_name,
-        agent.external_id,
-        agent.status,
-        agent.availability,
-        agent.pricing_model,
-        agent.price_amount,
-        agent.currency,
-        ...(agent.capabilities ?? []),
-        ...(agent.skills ?? []),
-        ...(agent.task_categories ?? []),
-        ...(agent.supported_task_types ?? []),
-      ]);
-      return (!query || searchable.includes(query))
-        && (!filters.availability || agent.availability === filters.availability)
-        && (!filters.category || agent.category === filters.category || agent.task_categories?.includes(filters.category) || agent.supported_task_types?.includes(filters.category))
-        && (!filters.status || agent.status === filters.status);
-    });
-  }, [agents, filters, search]);
+  const sortedAgents = useMemo(() => [...agents].sort((a, b) => {
+    if (sort === "price-low" || sort === "price-high") {
+      const av = Number(a.price_amount ?? Number.POSITIVE_INFINITY);
+      const bv = Number(b.price_amount ?? Number.POSITIVE_INFINITY);
+      return sort === "price-low" ? av - bv : bv - av;
+    }
+    if (sort === "recent") return String(b.created_at ?? "").localeCompare(String(a.created_at ?? ""));
+    return a.name.localeCompare(b.name);
+  }), [agents, sort]);
 
-  const openProfile = (agentId: string | number) => {
-    const id = String(agentId);
-    setProfileId(id);
-    router.push(`/marketplace/?agent=${encodeURIComponent(id)}`);
-  };
+  const openProfile = (id: string | number) => router.push(`/marketplace?agent=${encodeURIComponent(String(id))}`);
+  const clearFilters = () => { setSearch(""); setCategory(""); setStatus(""); setSort("name"); setPage(0); };
 
-  const closeProfile = () => {
-    setProfileId(null);
-    router.push("/marketplace/");
-  };
-
-  const hasFilters = Boolean(search.trim() || Object.values(filters).some(Boolean));
-
-  return (
-    <main className="marketplace-page relative flex min-h-screen w-full bg-transparent font-sans text-white selection:bg-white selection:text-black">
-      <div className="relative z-10 mx-auto min-h-screen w-full max-w-7xl min-w-0 px-6 pb-28 pt-14 sm:px-8 lg:px-12">
-        <header className="mb-10 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div>
-            <div className="mb-4 inline-flex items-center gap-2">
-              <Hexagon size={14} className="text-[#CCCCCC]" />
-              <span className="text-xs font-mono uppercase tracking-[0.2em] text-[#CCCCCC]">Live V2 marketplace</span>
-            </div>
-            <h1 className="mb-4 text-4xl font-bold text-white md:text-5xl">{profileId ? "Agent profile" : "Agent Marketplace"}</h1>
-            <p className="max-w-2xl text-sm font-light leading-relaxed text-[#A3A3A3] md:text-base">
-              Browse synthetic demo registry records returned by the V2 marketplace. These listings are sample data and are not connected to executing agent runtimes.
-            </p>
-          </div>
-          {!profileId && <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[520px]">
-            <label className="group relative block min-w-0">
-              <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#888888] transition-colors group-focus-within:text-white" />
-              <input
-                type="search"
-                placeholder="Search name, skills and capabilities…"
-                aria-label="Search marketplace agents"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className="w-full rounded-xl border border-white/15 bg-white/[0.04] py-3.5 pl-12 pr-4 text-sm text-white placeholder-[#888888] shadow-sm backdrop-blur-xl focus:border-white/35 focus:outline-none"
-              />
-            </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-              <FilterSelect label="Availability" value={filters.availability} values={options.availability} onChange={(value) => setFilters({ ...filters, availability: value })} />
-              <FilterSelect label="Category" value={filters.category} values={options.category} onChange={(value) => setFilters({ ...filters, category: value })} />
-              <FilterSelect label="Status" value={filters.status} values={options.status} onChange={(value) => setFilters({ ...filters, status: value })} />
-            </div>
-          </div>}
-        </header>
-
-        {profileId ? <>
-          <LiquidButton type="button" onClick={closeProfile} className="mb-5 inline-flex items-center gap-2 border border-white/15 px-3 py-2 text-sm"><ArrowLeft size={16} /> Back to marketplace</LiquidButton>
-          {profileLoading ? <ProfileSkeleton /> : profileError ? <ErrorPanel title="Profile unavailable" message={profileError} retry={() => setProfileRetry((value) => value + 1)} /> : profile ? <AgentProfile agent={profile} /> : null}
-        </> : <>
-          {error ? <ErrorPanel message={error} retry={() => setRetry((value) => value + 1)} /> : !loaded ? <MarketplaceSkeleton /> : agents.length === 0 ? <EmptyState title="No live agents are currently available from the V2 registry." detail="The marketplace API returned an empty collection. Registered agents will appear here when the backend publishes them." /> : visibleAgents.length ? <>
-            <div className="mb-4 flex items-center justify-between gap-3 text-xs text-[#A3A3A3]" role="status">
-              <span>{visibleAgents.length} of {agents.length} agents</span>
-              {hasFilters && <button type="button" onClick={() => { setSearch(""); setFilters(emptyFilters); }} className="underline underline-offset-4">Clear filters</button>}
-            </div>
-            <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-              {visibleAgents.map((agent) => <AgentCard key={agent.id} agent={agent} onOpen={() => openProfile(agent.id)} />)}
-            </div>
-          </> : <EmptyState title="No agents match these filters." detail="Try a different search or clear one or more filters." action={hasFilters ? <button type="button" onClick={() => { setSearch(""); setFilters(emptyFilters); }} className="mt-4 underline underline-offset-4">Clear filters</button> : undefined} />}
-        </>}
-      </div>
-    </main>
-  );
-}
-
-function uniqueAgentValues(agents: ApiAgent[], select: (agent: ApiAgent) => string | string[] | undefined) {
-  return Array.from(new Set(agents.flatMap((agent) => {
-    const value = select(agent);
-    return Array.isArray(value) ? value : value ? [value] : [];
-  }))).sort((left, right) => left.localeCompare(right));
-}
-
-function FilterSelect({ label, value, values, onChange }: { label: string; value: string; values: string[]; onChange: (value: string) => void }) {
-  return <label className="min-w-0 text-[11px] text-[#A3A3A3]">
-    <span className="mb-1 block">{label}</span>
-    <select value={value} onChange={(event) => onChange(event.target.value)} aria-label={`Filter by ${label.toLowerCase()}`} className="w-full rounded-lg border border-white/15 bg-[#111111] px-2.5 py-2.5 text-xs text-white focus:border-white/40 focus:outline-none">
-      <option value="">All</option>
-      {values.map((option) => <option key={option} value={option}>{option}</option>)}
-    </select>
-  </label>;
-}
-
-function AgentCard({ agent, onOpen }: { agent: ApiAgent; onOpen: () => void }) {
-  const categories = agent.task_categories ?? [];
-  return <article className="flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition-colors hover:border-white/25">
-    <div className="flex items-start justify-between gap-3 border-b border-white/10 px-5 py-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/[0.06] text-[#CCCCCC]"><Terminal size={19} /></span>
-        <div className="min-w-0">
-          <h2 className="truncate text-lg font-semibold text-white">{agent.name}</h2>
-          <p className="truncate text-xs text-[#888888]">{agent.external_id || `Agent #${agent.id}`}</p>
+  if (profileId) return <main className="min-h-screen bg-transparent px-5 pb-32 pt-14 text-white sm:px-8 lg:px-12">
+    <div className="mx-auto max-w-5xl">
+      <LiquidButton type="button" onClick={() => router.push("/marketplace")} className="mb-6 inline-flex items-center gap-2 border border-white/15 px-4 py-2 text-sm"><ArrowLeft size={16}/> Marketplace</LiquidButton>
+      {profileLoading ? <LoadingState label="Loading agent profile…" /> : profileError ? <ErrorState message={profileError} retry={() => router.refresh()} /> : profile ? <article className="rounded-2xl border border-white/15 bg-white/[0.04] p-6 sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-5">
+          <div><p className="text-xs uppercase tracking-widest text-neutral-400">Agent profile · #{profile.id}</p><h1 className="mt-2 text-3xl font-semibold">{profile.name}</h1></div>
+          <div className="flex items-center gap-2 rounded-lg border border-white/15 px-3 py-2 text-xs uppercase text-neutral-300"><ShieldCheck size={14}/>{profile.status ?? "Status unknown"}</div>
         </div>
-      </div>
-      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-white/10 px-2 py-1 text-[10px] uppercase text-[#CCCCCC]"><ShieldCheck size={12} /> {agent.status ?? "Unknown"}</span>
+        {isDemoProfile(profile) && <p className="mt-4 inline-flex rounded-md border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-xs text-amber-200">Demo profile · registry listing only</p>}
+        <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-neutral-300">{profile.description || "No description supplied by the registry."}</p>
+        <div className="mt-6 grid gap-5 border-t border-white/10 pt-5 sm:grid-cols-2">
+          <ProfileField label="Category" value={profile.category}/>
+          <ProfileField label="Availability" value={profile.availability}/>
+          <ProfileField label="Pricing" value={profile.price_amount == null ? null : `${profile.price_amount} ${profile.currency ?? ""}`}/>
+          <ProfileField label="Pricing model" value={profile.pricing_model}/>
+          <ProfileField label="Capabilities" value={profile.capabilities?.join(", ")}/>
+          <ProfileField label="Skills" value={profile.skills?.join(", ")}/>
+          <ProfileField label="Task types" value={profile.task_categories?.join(", ") || profile.supported_task_types?.join(", ")}/>
+          <ProfileField label="Owner" value={profile.owner_display_name}/>
+        </div>
+        <p className="mt-6 border-t border-white/10 pt-4 text-xs leading-5 text-neutral-500">Registry information is supplied by the backend. A listing does not mean that an agent runtime can execute tasks in this release.</p>
+      </article> : null}
     </div>
-    <div className="flex flex-1 flex-col px-5 py-4">
-      <p className="mb-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-[#BDBDBD]">{agent.description || "No description provided."}</p>
-      {agent.owner_display_name && <p className="mb-3 text-xs text-[#A3A3A3]">By {agent.owner_display_name}</p>}
-      {agent.category && <p className="mb-3 text-xs text-[#A3A3A3]">Category: <span className="text-[#D8D8D8]">{agent.category}</span></p>}
-      <DataField label="Capabilities" values={agent.capabilities} />
-      <DataField label="Skills" values={agent.skills} />
-      <DataField label="Task categories" values={[...categories, ...(agent.supported_task_types ?? [])].filter((value, index, list) => list.indexOf(value) === index)} />
-      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-xs">
-        <p className="flex items-center gap-2 text-[#A3A3A3]"><Filter size={13} /> {agent.availability ?? "Availability unknown"}</p>
-        <p className="flex items-center gap-2 text-[#A3A3A3]"><Activity size={13} /> {agent.estimated_completion_minutes == null ? "No estimate" : `${agent.estimated_completion_minutes} min estimate`}</p>
-        <p className="text-[#A3A3A3]">Pricing: <span className="text-[#D8D8D8]">{agent.price_amount == null ? "Not provided" : `${agent.price_amount} ${agent.currency ?? ""}`}</span></p>
-        <p className="text-[#A3A3A3]">Model: <span className="text-[#D8D8D8]">{agent.pricing_model ?? "Not provided"}</span></p>
-      </div>
-      <button type="button" onClick={onOpen} className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-white/[0.12] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">
-        View agent profile <ArrowUpRight size={15} />
-      </button>
+  </main>;
+
+  return <main className="min-h-screen bg-transparent px-5 pb-32 pt-14 text-white sm:px-8 lg:px-12">
+    <div className="mx-auto max-w-7xl">
+      <header className="mb-8 flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
+        <div><p className="mb-3 text-xs font-mono uppercase tracking-[0.2em] text-neutral-400">Live V2 registry</p><h1 className="text-4xl font-bold sm:text-5xl">Agent Marketplace</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-neutral-400">Public agent profiles returned by the production registry. Listings are not proof of an executable agent runtime.</p></div>
+        <div className="text-sm text-neutral-400" aria-live="polite">{loading ? "Loading registry…" : `${total} registered agents`}</div>
+      </header>
+      <section className="mb-7 grid gap-3 rounded-2xl border border-white/10 bg-white/[0.035] p-4 sm:grid-cols-2 lg:grid-cols-4" aria-label="Marketplace filters">
+        <label className="relative block"><Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500"/><span className="sr-only">Search agents</span><input value={search} onChange={(event) => { setSearch(event.target.value); setPage(0); }} placeholder="Search agents…" className="w-full rounded-lg border border-white/15 bg-black/30 py-2.5 pl-9 pr-3 text-sm outline-none focus:border-white/40"/></label>
+        <label className="flex items-center gap-2 text-xs text-neutral-400"><SlidersHorizontal size={14}/><span className="sr-only">Category</span><select value={category} onChange={(event) => { setCategory(event.target.value); setPage(0); }} className="min-w-0 flex-1 rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="">All categories</option>{categories.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+        <label className="sr-only" htmlFor="market-status">Status</label><select id="market-status" value={status} onChange={(event) => { setStatus(event.target.value); setPage(0); }} className="rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="active">Active</option><option value="">All statuses</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></select>
+        <label className="sr-only" htmlFor="market-sort">Sort agents</label><select id="market-sort" value={sort} onChange={(event) => setSort(event.target.value as SortMode)} className="rounded-lg border border-white/15 bg-[#101010] px-3 py-2.5 text-sm text-white"><option value="name">Sort: Name</option><option value="price-low">Price: Low to high</option><option value="price-high">Price: High to low</option><option value="recent">Recently listed</option></select>
+      </section>
+      {error ? <ErrorState message={error} retry={() => void load()}/> : loading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({length:6},(_,i)=><div key={i} className="h-64 animate-pulse rounded-2xl border border-white/10 bg-white/[0.04]"/> )}</div> : sortedAgents.length === 0 ? <div className="rounded-2xl border border-dashed border-white/20 p-12 text-center"><h2 className="text-lg font-semibold">{total === 0 ? "No agents are currently available" : "No agents match these filters"}</h2><p className="mt-2 text-sm text-neutral-400">{total === 0 ? "The live API returned an empty collection. No sample records are inserted by the frontend." : "Try changing the search or filters."}</p><button type="button" onClick={clearFilters} className="mt-4 text-sm underline underline-offset-4">Clear filters</button></div> : <>
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{sortedAgents.map((agent) => <article key={agent.id} className="flex min-w-0 flex-col rounded-2xl border border-white/10 bg-white/[0.035] p-5 transition hover:border-white/25">
+          <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06]"><Terminal size={17}/></span><div className="min-w-0"><h2 className="truncate font-semibold">{agent.name}</h2><p className="text-xs text-neutral-500">Agent #{agent.id}</p></div></div><span className="shrink-0 rounded-md border border-white/10 px-2 py-1 text-[10px] uppercase text-neutral-300">{agent.status ?? "Unknown"}</span></div>
+          {isDemoProfile(agent) && <span className="mt-4 w-fit rounded-md border border-amber-300/30 bg-amber-300/10 px-2 py-1 text-[10px] uppercase tracking-wide text-amber-200">Demo profile</span>}
+          <p className="mt-4 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-neutral-300">{agent.description || "No description supplied."}</p>
+          <p className="mt-3 text-xs text-neutral-400">{agent.category || agent.task_categories?.[0] || "Category not supplied"} · {agent.availability || "Availability unknown"}</p>
+          <p className="mt-3 text-sm text-neutral-300">{agent.price_amount == null ? "Pricing not supplied" : `${agent.price_amount} ${agent.currency ?? ""}`} <span className="text-xs text-neutral-500">{agent.pricing_model || ""}</span></p>
+          <button type="button" onClick={() => openProfile(agent.id)} className="mt-auto flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/[0.04] px-4 py-2.5 text-sm font-medium hover:bg-white/[0.08] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white">View profile <ArrowUpRight size={15}/></button>
+        </article>)}</div>
+        <nav className="mt-7 flex items-center justify-between gap-4" aria-label="Marketplace pagination"><p className="text-xs text-neutral-500">Page {page+1} of {Math.max(1,Math.ceil(total/PAGE_SIZE))}</p><div className="flex gap-2"><button type="button" disabled={page===0} onClick={()=>setPage((v)=>Math.max(0,v-1))} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Previous</button><button type="button" disabled={(page+1)*PAGE_SIZE>=total} onClick={()=>setPage((v)=>v+1)} className="rounded-lg border border-white/15 px-4 py-2 text-sm disabled:opacity-30">Next</button></div></nav>
+      </>}
+      <p className="mt-8 text-xs leading-5 text-neutral-500">Demo profiles are registry examples. AutoEscrow V2 does not execute agent tasks in the current release. No ratings or reviews are inferred or fabricated.</p>
     </div>
-  </article>;
+  </main>;
 }
 
-function DataField({ label, values }: { label: string; values?: string[] }) {
-  if (!values?.length) return null;
-  return <div className="mb-3">
-    <p className="mb-1.5 text-[10px] font-semibold uppercase text-[#888888]">{label}</p>
-    <div className="flex flex-wrap gap-1.5">{values.map((value) => <span key={value} className="max-w-full break-words rounded-md bg-white/[0.07] px-2 py-1 text-[11px] text-[#D8D8D8]">{value}</span>)}</div>
-  </div>;
+function ProfileField({label,value}:{label:string;value?:string|null}) {
+  if (!value) return null;
+  return <div><p className="text-[10px] font-semibold uppercase tracking-widest text-neutral-500">{label}</p><p className="mt-1 break-words text-sm text-neutral-200">{value}</p></div>;
 }
-
-function AgentProfile({ agent }: { agent: ApiAgent }) {
-  const stats = Object.entries(agent.demo_performance_stats ?? {});
-  const metadata = Object.entries(agent.metadata ?? {});
-  return <article className="max-w-4xl rounded-xl border border-white/10 bg-white/[0.04] p-5 sm:p-7">
-    <header className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-5">
-      <div>
-        <p className="mb-2 text-xs uppercase text-[#888888]">Backend agent ID: {agent.id}</p>
-        <h2 className="text-3xl font-semibold text-white">{agent.name}</h2>
-        {agent.external_id && <p className="mt-2 text-sm text-[#A3A3A3]">{agent.external_id}</p>}
-        {agent.owner_display_name && <p className="mt-2 text-sm text-[#A3A3A3]">Listed by {agent.owner_display_name}</p>}
-      </div>
-      <p className="rounded-md border border-white/15 px-3 py-2 text-xs uppercase text-[#D8D8D8]">{agent.status ?? "Status unknown"} · {agent.availability ?? "Availability unknown"}</p>
-    </header>
-    <p className="whitespace-pre-wrap py-5 text-sm leading-7 text-[#D0D0D0]">{agent.description || "No description provided."}</p>
-    <div className="grid gap-5 border-t border-white/10 pt-5 sm:grid-cols-2">
-      <ProfileList label="Category" values={agent.category ? [agent.category] : []} />
-      <ProfileList label="Capabilities" values={agent.capabilities} />
-      <ProfileList label="Skills" values={agent.skills} />
-      <ProfileList label="Task categories" values={[...(agent.task_categories ?? []), ...(agent.supported_task_types ?? [])].filter((value, index, list) => list.indexOf(value) === index)} />
-    </div>
-    <dl className="mt-6 grid gap-4 border-t border-white/10 pt-5 sm:grid-cols-2">
-      <ProfileValue label="Pricing model" value={agent.pricing_model} />
-      <ProfileValue label="Price" value={agent.price_amount == null ? null : `${agent.price_amount} ${agent.currency ?? ""}`} />
-      <ProfileValue label="Public listing" value={agent.is_public == null ? null : agent.is_public ? "Yes" : "No"} />
-      <ProfileValue label="Estimated completion" value={agent.estimated_completion_minutes == null ? null : `${agent.estimated_completion_minutes} minutes`} />
-      <ProfileValue label="Created" value={agent.created_at ? new Date(agent.created_at).toLocaleString() : null} />
-      <ProfileValue label="Updated" value={agent.updated_at ? new Date(agent.updated_at).toLocaleString() : null} />
-      <ProfileValue label="Endpoint URL" value={agent.endpoint_url} />
-    </dl>
-    {stats.length > 0 && <ProfileObject title="Backend performance statistics" entries={stats} />}
-    {metadata.length > 0 && <ProfileObject title="Backend metadata" entries={metadata} />}
-  </article>;
-}
-
-function ProfileList({ label, values }: { label: string; values?: string[] }) {
-  return <section><h3 className="mb-2 text-xs font-semibold uppercase text-[#888888]">{label}</h3><p className="text-sm leading-6 text-[#D8D8D8]">{displayList(values)}</p></section>;
-}
-
-function ProfileValue({ label, value }: { label: string; value?: string | number | null }) {
-  if (value == null || value === "") return null;
-  return <div><dt className="text-xs font-semibold uppercase text-[#888888]">{label}</dt><dd className="mt-1 break-all text-sm text-[#D8D8D8]">{value}</dd></div>;
-}
-
-function ProfileObject({ title, entries }: { title: string; entries: [string, unknown][] }) {
-  return <details className="mt-6 border-t border-white/10 pt-5">
-    <summary className="cursor-pointer text-sm font-semibold text-white">{title}</summary>
-    <dl className="mt-4 grid gap-3 sm:grid-cols-2">{entries.map(([key, value]) => <div key={key} className="min-w-0"><dt className="text-xs text-[#888888]">{key}</dt><dd className="mt-1 break-words text-sm text-[#D8D8D8]">{typeof value === "string" ? value : JSON.stringify(value)}</dd></div>)}</dl>
-  </details>;
-}
-
-function MarketplaceSkeleton() {
-  return <div aria-label="Loading marketplace agents" role="status" className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-    {Array.from({ length: 6 }, (_, index) => <div key={index} className="animate-pulse rounded-xl border border-white/10 p-5">
-      <div className="mb-5 flex items-center gap-3"><div className="h-11 w-11 rounded-lg bg-white/10" /><div className="flex-1"><div className="h-4 w-2/3 rounded bg-white/10" /><div className="mt-2 h-3 w-1/3 rounded bg-white/10" /></div></div>
-      <div className="h-4 w-full rounded bg-white/10" /><div className="mt-2 h-4 w-5/6 rounded bg-white/10" /><div className="mt-6 h-3 w-1/4 rounded bg-white/10" /><div className="mt-2 h-8 w-full rounded bg-white/10" />
-    </div>)}
-    <span className="sr-only">Loading live marketplace agents</span>
-  </div>;
-}
-
-function ProfileSkeleton() {
-  return <div role="status" className="max-w-4xl animate-pulse rounded-xl border border-white/10 p-7"><div className="h-8 w-1/2 rounded bg-white/10" /><div className="mt-5 h-4 w-full rounded bg-white/10" /><div className="mt-2 h-4 w-4/5 rounded bg-white/10" /><span className="sr-only">Loading agent profile</span></div>;
-}
-
-function ErrorPanel({ title = "Registry unavailable", message, retry }: { title?: string; message: string; retry: () => void }) {
-  return <div className="error-panel" role="alert"><p>{title}: {message}</p><LiquidButton type="button" onClick={retry} className="mt-3 inline-flex items-center gap-2 px-4 py-2 text-sm"><RefreshCw size={14} /> Retry</LiquidButton></div>;
-}
-
-function EmptyState({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) {
-  return <div className="rounded-xl border border-dashed border-white/20 px-6 py-14 text-center">
-    <p className="text-base font-semibold text-white">{title}</p>
-    <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#A3A3A3]">{detail}</p>
-    {action}
-  </div>;
-}
+function LoadingState({label}:{label:string}) { return <div role="status" className="rounded-xl border border-white/10 p-8 text-sm text-neutral-400">{label}</div>; }
+function ErrorState({message,retry}:{message:string;retry:()=>void}) { return <div role="alert" className="rounded-xl border border-red-400/30 bg-red-400/5 p-6"><p className="text-sm text-red-200">{message}</p><button type="button" onClick={retry} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-white/20 px-4 py-2 text-sm"><RefreshCw size={14}/> Retry</button></div>; }
