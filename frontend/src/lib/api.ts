@@ -213,16 +213,9 @@ export interface ApiLedgerHistory {
 }
 
 export interface ApiSubmission {
-  id: string | number;
-  job_id: string | number;
-  agent_id: string | number;
-  status: string;
-  submitted_at: string;
-  submitted_output: string;
-  notes: string | null;
-  evidence: Record<string, unknown>;
-  version?: string | number;
-  submission_id?: string | number;
+  id: string | number; job_id: string | number; agent_id: number; version: number;
+  artifact_url: string; content?: string | null; submitted_output: string;
+  evidence: Record<string, unknown>; notes?: string | null; status: string; submitted_at: string;
 }
 
 export interface ApiVerification {
@@ -238,15 +231,12 @@ export interface ApiVerification {
 }
 
 export interface ApiExecution {
-  job_id: string | number;
-  execution_status: string;
-  can_start: boolean;
-  can_submit: boolean;
-  can_verify: boolean;
-  started_at: string | null;
-  start_reason: string;
-  submit_reason: string;
-  verify_reason: string;
+  job_id: string | number; job_status: string; execution_status: string;
+  selected_agent_id?: number | null; executor_agent_id?: number | null; agreement_id?: number | null;
+  accepted_agreement_version?: number | null; escrow_status?: string | null; executor_type: "local_demo";
+  can_start: boolean; can_submit: boolean; can_verify: boolean; start_reason: string;
+  submit_reason: string; verify_reason: string; started_at: string | null;
+  latest_submission_version?: number | null; latest_verification_result?: string | null;
 }
 
 export interface ApiDashboardMetrics {
@@ -301,35 +291,15 @@ export interface AuthTokenResponse {
 }
 
 export interface ApiJobCreateRequest {
-  title: string;
-  description: string;
-  category?: string;
-  task_category?: string;
-  required_skills?: string[];
-  required_capabilities?: string[];
-  budget_amount?: string;
-  budget?: string;
-  currency?: string;
-  deadline?: string;
-  expected_deliverables?: string[];
-  expected_output?: string;
-  acceptance_criteria?: string[];
-  status?: string;
-  visibility?: "private" | "public";
-  additional_instructions?: string;
-  requester_agent_id?: number;
+  title: string; description: string; task_category: string; required_skills: string[];
+  expected_output: string; acceptance_criteria: string[]; budget: string; currency: string;
+  deadline: string; additional_instructions?: string; requester_agent_id?: number;
   requirements?: Record<string, unknown>;
 }
 
 export interface ApiAgreementCreateRequest {
-  job_id?: string | number;
-  agent_id?: string | number;
-  terms?: Record<string, unknown>;
-  version_number?: number;
-  rationale?: string;
-  currency?: string;
-  proposed_budget?: string;
-  proposed_deadline?: string | null;
+  terms?: Record<string, unknown>; rationale?: string; currency?: string;
+  proposed_budget?: string; proposed_deadline?: string | null;
 }
 
 export interface ApiSubmissionCreateRequest {
@@ -785,21 +755,21 @@ export const autoEscrowApi = {
   },
 
   matchJobAgents(jobId: number | string) {
-    return request<{ matches: Array<{ agent: ApiAgent; score: number; reasons: ApiMatchReason[] }>; weights: Record<string, number> }>(`/matching/jobs/${path(jobId)}`, { method: "POST" }).then((response): ApiMatchRun => ({
-      weights: response.weights,
-      matches: response.matches.map(({ agent, score, reasons }) => ({
-        agent_id: agent.id,
-        agent_name: agent.name,
-        agent,
-        score,
-        reasons,
-        explanation: reasons.map((reason) => reason.explanation).join(" "),
-      })),
-    }));
+    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" });
   },
 
-  createAgreement(payload: ApiAgreementCreateRequest) {
-    return request<ApiAgreement>("/agreements", { method: "POST", body: payload });
+  selectJobAgent(jobId: number | string, agentId: number | string, runId?: string) {
+    return request<ApiJob>(`/jobs/${path(jobId)}/matches/${path(agentId)}/select`, {
+      method: "POST", body: runId ? { run_id: runId } : {},
+    });
+  },
+
+  createAgreement(jobId: number | string, payload: ApiAgreementCreateRequest) {
+    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body: payload });
+  },
+
+  getAgreementForJob(jobId: number | string) {
+    return request<ApiAgreement | null>(`/jobs/${path(jobId)}/agreement`);
   },
 
   listAgreements(params: Record<string, string | number | undefined> = {}) {
@@ -827,8 +797,8 @@ export const autoEscrowApi = {
     return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: payload as Record<string, unknown> });
   },
 
-  createEscrow(agreementId: string | number) {
-    return request<ApiEscrow>("/escrows", { method: "POST", body: { agreement_id: agreementId } });
+  createEscrow(jobId: string | number, idempotencyKey: string) {
+    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: { idempotency_key: idempotencyKey } });
   },
 
   listEscrows(params: Record<string, string | number | undefined> = {}) {
@@ -841,16 +811,16 @@ export const autoEscrowApi = {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}`);
   },
 
-  fundEscrow(escrowId: number | string, payload: { idempotency_key: string }) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/fund`, { method: "POST", body: payload });
+  fundEscrow(jobId: number | string, payload: { idempotency_key: string }) {
+    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
   },
 
-  releaseEscrow(escrowId: number | string, payload: { idempotency_key?: string } = {}) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/release`, { method: "POST", body: payload });
+  releaseEscrow(escrowId: number | string) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/release`, { method: "POST" });
   },
 
-  refundEscrow(escrowId: number | string, payload: { idempotency_key?: string } = {}) {
-    return request<ApiEscrow>(`/escrows/${path(escrowId)}/refund`, { method: "POST", body: payload });
+  refundEscrow(escrowId: number | string) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/refund`, { method: "POST" });
   },
 
   computeMatches(jobId: number | string) {
@@ -865,16 +835,8 @@ export const autoEscrowApi = {
     return Promise.reject(new AutoEscrowApiError(501, "Agent selection is recorded when an agreement is created for a matching agent."));
   },
 
-  async getAgreementForJob(jobId: number | string) {
-    const response = await autoEscrowApi.listAgreements({ limit: 100, offset: 0 });
-    return response.items.find((item) => String(item.job_id) === String(jobId)) ?? null;
-  },
-
   async getEscrowForJob(jobId: number | string) {
-    const agreement = await autoEscrowApi.getAgreementForJob(jobId);
-    if (!agreement) return null;
-    const response = await autoEscrowApi.listEscrows({ limit: 100, offset: 0 });
-    return response.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? null;
+    return request<ApiEscrow | null>(`/jobs/${path(jobId)}/escrow`);
   },
 
   getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
@@ -954,6 +916,11 @@ export const autoEscrowApi = {
 
   getLedger(escrowId: number | string) {
     return request<ApiLedgerEntry[]>(`/escrows/${path(escrowId)}/ledger`);
+  },
+
+  listDisputes(status?: string) {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<ApiDispute[]>(`/disputes${query}`);
   },
 
   createDispute(jobId: number | string, payload: Record<string, unknown>) {
