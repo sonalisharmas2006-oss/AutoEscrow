@@ -92,24 +92,40 @@ export interface ApiJob {
 }
 
 export interface ApiMatchReason {
-  component: string;
-  score: number;
-  weight: number;
-  contribution: number;
-  explanation: string;
+  component?: string;
+  score?: number;
+  weight?: number;
+  contribution?: number;
+  explanation?: string;
+  [key: string]: unknown;
 }
 
 export interface ApiMatchCandidate {
-  agent_id: string | number; agent_name: string; agent: ApiAgent; score: number;
-  reasons: ApiMatchReason[]; explanation: string; eligible: boolean;
-  matched_skills?: string[]; missing_skills?: string[]; breakdown?: Record<string, unknown>;
-  warnings?: string[]; exclusion_reasons?: string[];
+  agent_id: string | number;
+  agent_name: string;
+  agent: ApiAgent;
+  score: number;
+  reasons: ApiMatchReason[];
+  explanation?: string;
+  eligible?: boolean;
+  matched_skills?: string[];
+  missing_skills?: string[];
+  breakdown?: Record<string, unknown>;
+  warnings?: string[];
+  exclusion_reasons?: string[];
+  [key: string]: unknown;
 }
 
 export interface ApiMatchRun {
-  matches: ApiMatchCandidate[]; weights?: Record<string, number>; run_id?: string;
-  scoring_version?: string; computed_at?: string; candidates: ApiMatchCandidate[];
-  excluded_agents?: ApiMatchCandidate[]; job_id?: string | number;
+  matches: ApiMatchCandidate[];
+  weights?: Record<string, number>;
+  run_id?: string;
+  scoring_version?: string;
+  computed_at?: string;
+  candidates?: ApiMatchCandidate[];
+  excluded_agents?: ApiMatchCandidate[];
+  job_id?: string | number;
+  [key: string]: unknown;
 }
 
 export interface ApiAgreementVersion {
@@ -208,9 +224,25 @@ export interface ApiLedgerHistory {
 }
 
 export interface ApiSubmission {
-  id: string | number; job_id: string | number; agent_id: number; version: number;
-  artifact_url: string; content?: string | null; submitted_output: string;
-  evidence: Record<string, unknown>; notes?: string | null; status: string; submitted_at: string;
+  id: string | number;
+  escrow_id: string;
+  job_id: string;
+  attempt: number;
+  status: "submitted" | "approved" | "rejected" | "disputed" | string;
+  summary: string;
+  deliverables: string[];
+  executor: string;
+  review_note?: string | null;
+  created_at: string;
+  agent_id?: string | number;
+  version?: number;
+  artifact_url?: string | null;
+  content?: string | null;
+  submitted_output?: string;
+  evidence?: Record<string, unknown>;
+  notes?: string | null;
+  submitted_at?: string;
+  [key: string]: unknown;
 }
 
 export interface ApiVerification {
@@ -286,16 +318,31 @@ export interface AuthTokenResponse {
 }
 
 export interface ApiJobCreateRequest {
-  title: string; description: string; task_category: string; required_skills: string[];
-  expected_output: string; acceptance_criteria: string[]; budget: string; currency: string;
-  deadline: string; additional_instructions?: string; requester_agent_id?: number;
-  requirements?: Record<string, unknown>;
+  title: string;
+  description: string;
+  category: string;
+  required_skills: string[];
+  required_capabilities: string[];
+  budget_amount: string;
+  currency: "VCR";
+  deadline: string;
+  expected_deliverables: string[];
+  status: "open";
+  visibility: "public";
 }
 
 export interface ApiAgreementCreateRequest {
-  terms?: Record<string, unknown>; rationale?: string; currency?: string;
-  proposed_budget?: string; proposed_deadline?: string | null;
-  job_id?: string | number; agent_id?: string | number;
+  job_id: string;
+  agent_id: string;
+  terms: {
+    scope: string;
+    deliverables: string[];
+    budget_amount: string;
+    currency: "VCR" | string;
+    deadline: string;
+    responsibilities: string[];
+    acceptance_conditions: string[];
+  };
 }
 
 export interface ApiSubmissionCreateRequest {
@@ -307,18 +354,12 @@ export interface ApiSubmissionCreateRequest {
 
 export interface ApiAgreementTerms {
   scope: string;
-  expected_deliverable?: string;
-  deliverables?: string[];
-  acceptance_criteria?: string[];
-  verification_method?: string;
-  cancellation_conditions?: string;
-  dispute_conditions?: string;
-  instructions?: string;
-  responsibilities?: string[];
-  acceptance_conditions?: string[];
-  budget_amount?: string;
-  currency?: string;
-  deadline?: string;
+  deliverables: string[];
+  budget_amount: string;
+  currency: string;
+  deadline: string;
+  responsibilities: string[];
+  acceptance_conditions: string[];
   [key: string]: unknown;
 }
 
@@ -628,6 +669,47 @@ const normalizeListResponse = <T>(value: ApiList<T> | T[] | null | undefined): T
   return Array.isArray((value as ApiList<T>).items) ? (value as ApiList<T>).items : [];
 };
 
+const normalizeApiList = <T>(value: ApiList<T> | T[] | null | undefined): ApiList<T> => {
+  const items = normalizeListResponse(value);
+  if (Array.isArray(value)) return { items, total: items.length, limit: items.length, offset: 0 };
+  return {
+    items,
+    total: Number((value as ApiList<T> | null)?.total ?? items.length),
+    limit: (value as ApiList<T> | null)?.limit,
+    offset: (value as ApiList<T> | null)?.offset,
+  };
+};
+
+const normalizeMatchRun = (response: ApiMatchRun): ApiMatchRun => {
+  const rawMatches = Array.isArray(response.matches) ? response.matches : Array.isArray(response.candidates) ? response.candidates : [];
+  const matches = rawMatches.map((candidate) => {
+    const rawAgent = candidate.agent && typeof candidate.agent === "object" ? candidate.agent : null;
+    const agent = (rawAgent ?? {
+      id: candidate.agent_id ?? "",
+      name: candidate.agent_name ?? "Unnamed agent",
+    }) as ApiAgent;
+    return {
+      ...candidate,
+      agent,
+      agent_id: candidate.agent_id ?? agent.id,
+      agent_name: candidate.agent_name ?? agent.name,
+      score: Number(candidate.score ?? 0),
+      reasons: Array.isArray(candidate.reasons) ? candidate.reasons : [],
+    };
+  });
+  return { ...response, matches, candidates: matches };
+};
+
+const isAgreementAccepted = (agreement: ApiAgreement): boolean => {
+  const statusAccepted = ["accepted", "active"].includes(String(agreement.status).toLowerCase());
+  const version = agreement.current_version_number ?? agreement.proposal_version;
+  const acceptedVersion = agreement.accepted_version ?? version;
+  const acceptances = Array.isArray(agreement.acceptances) ? agreement.acceptances : [];
+  const distinctParties = new Set(acceptances.map((item) => item.party || item.user_id).filter(Boolean));
+  const recordsConfirmBothParties = acceptances.length === 0 || distinctParties.size >= 2;
+  return statusAccepted && acceptedVersion != null && acceptedVersion === version && recordsConfirmBothParties;
+};
+
 export const autoEscrowApi = {
   async startDemoSession(accessCode = "") {
     const session = await request<ApiDemoSession>("/demo/session", { method: "POST", body: { access_code: accessCode } });
@@ -679,10 +761,7 @@ export const autoEscrowApi = {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
     const endpoint = options.public ? "/marketplace/agents" : "/agents";
-    return request<ApiList<ApiAgent> | ApiAgent[]>(`${endpoint}${query.size ? `?${query}` : ""}`, { public: options.public }).then((response) => ({
-      items: normalizeListResponse(response),
-      total: Array.isArray(response) ? response.length : (response as ApiList<ApiAgent> | null)?.total ?? 0,
-    } satisfies ApiList<ApiAgent>));
+    return request<ApiList<ApiAgent> | ApiAgent[]>(`${endpoint}${query.size ? `?${query}` : ""}`, { public: options.public }).then(normalizeApiList);
   },
 
   listMyAgents(params: Record<string, string | number | undefined> = {}) {
@@ -727,10 +806,7 @@ export const autoEscrowApi = {
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
     void options;
     const endpoint = "/jobs";
-    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then((response) => ({
-      items: normalizeListResponse(response),
-      total: Array.isArray(response) ? response.length : (response as ApiList<ApiJob> | null)?.total ?? 0,
-    } satisfies ApiList<ApiJob>));
+    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then(normalizeApiList);
   },
 
   getJob(jobId: number | string) {
@@ -751,14 +827,7 @@ export const autoEscrowApi = {
   },
 
   matchJobAgents(jobId: number | string) {
-    return request<ApiMatchRun>(`/jobs/${path(jobId)}/matches`, { method: "POST" }).then((response) => ({
-      ...response,
-      matches: response.candidates.map((candidate) => ({
-        ...candidate,
-        agent: { id: candidate.agent_id, name: candidate.agent_name } as ApiAgent,
-        reasons: candidate.reasons ?? [],
-      })),
-    }));
+    return request<ApiMatchRun>(`/matching/jobs/${path(jobId)}`, { method: "POST" }).then(normalizeMatchRun);
   },
 
   selectJobAgent(jobId: number | string, agentId: number | string, runId?: string) {
@@ -771,15 +840,13 @@ export const autoEscrowApi = {
     return autoEscrowApi.selectJobAgent(jobId, agentId, runId);
   },
 
-  createAgreement(jobOrPayload: number | string | ApiAgreementCreateRequest, payload?: ApiAgreementCreateRequest) {
-    const jobId = typeof jobOrPayload === "object" ? jobOrPayload.job_id : jobOrPayload;
-    const body = typeof jobOrPayload === "object" ? jobOrPayload : payload ?? {};
-    if (jobId === undefined || jobId === null) throw new Error("A job ID is required to create an agreement.");
-    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body });
+  createAgreement(payload: ApiAgreementCreateRequest) {
+    return request<ApiAgreement>("/agreements", { method: "POST", body: payload });
   },
 
-  getAgreementForJob(jobId: number | string) {
-    return request<ApiAgreement | null>(`/jobs/${path(jobId)}/agreement`);
+  async getAgreementForJob(jobId: number | string) {
+    const agreements = normalizeApiList(await request<ApiList<ApiAgreement> | ApiAgreement[]>("/agreements"));
+    return agreements.items.find((agreement) => String(agreement.job_id) === String(jobId)) ?? null;
   },
 
   listAgreements(params: Record<string, string | number | undefined> = {}) {
@@ -796,19 +863,12 @@ export const autoEscrowApi = {
     return request<ApiAgreement>(`/agreements/${path(agreementId)}/versions`, { method: "POST", body: payload });
   },
 
-  acceptAgreement(...args: unknown[]) {
-    const [first, second] = args;
-    const hasAgreementId = typeof first === "number" || typeof first === "string";
-    const agreementId = hasAgreementId ? first as number | string : undefined;
-    const payload = hasAgreementId ? (typeof second === "string" ? { rationale: second } : (second ?? {})) : (first ?? {});
-    if (agreementId === undefined) {
-      throw new Error("An agreement id is required to accept an agreement.");
-    }
-    return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: payload as Record<string, unknown> });
+  acceptAgreement(agreementId: string | number, versionNumber: number) {
+    return request<ApiAgreement>(`/agreements/${path(agreementId)}/accept`, { method: "POST", body: { version_number: versionNumber } });
   },
 
-  createEscrow(jobId: string | number, idempotencyKey: string) {
-    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: { idempotency_key: idempotencyKey } });
+  createEscrow(agreementId: string | number) {
+    return request<ApiEscrow>("/escrows", { method: "POST", body: { agreement_id: String(agreementId) } });
   },
 
   listEscrows(params: Record<string, string | number | undefined> = {}) {
@@ -821,8 +881,8 @@ export const autoEscrowApi = {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}`);
   },
 
-  fundEscrow(jobId: number | string, payload: { idempotency_key: string; reference?: string }) {
-    return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
+  fundEscrow(escrowId: number | string, payload: { idempotency_key: string }) {
+    return request<ApiEscrow>(`/escrows/${path(escrowId)}/fund`, { method: "POST", body: payload });
   },
 
   releaseEscrow(escrowId: number | string, idempotencyKey = `release-${escrowId}-v1`) {
@@ -842,7 +902,12 @@ export const autoEscrowApi = {
   },
 
   async getEscrowForJob(jobId: number | string) {
-    return request<ApiEscrow | null>(`/jobs/${path(jobId)}/escrow`);
+    const [agreement, escrows] = await Promise.all([
+      autoEscrowApi.getAgreementForJob(jobId),
+      autoEscrowApi.listEscrows(),
+    ]);
+    if (!agreement) return null;
+    return escrows.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? null;
   },
 
   getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
@@ -916,12 +981,14 @@ export const autoEscrowApi = {
     return request<ApiJobEvent[]>(`/jobs/${path(jobId)}/events`);
   },
 
-  getSubmissions(jobId: number | string) {
-    return request<ApiSubmission[]>(`/jobs/${path(jobId)}/submissions`);
+  async getSubmissions(jobId: number | string) {
+    const response = await request<ApiList<ApiSubmission> | ApiSubmission[]>(`/jobs/${path(jobId)}/submissions`);
+    return normalizeListResponse(response);
   },
 
-  getEscrowSubmissions(escrowId: number | string) {
-    return request<ApiSubmission[]>(`/escrows/${path(escrowId)}/submissions`);
+  async getEscrowSubmissions(escrowId: number | string) {
+    const response = await request<ApiList<ApiSubmission> | ApiSubmission[]>(`/escrows/${path(escrowId)}/submissions`);
+    return normalizeListResponse(response);
   },
 
   createEscrowSubmission(escrowId: number | string, payload: ApiSubmissionCreateRequest) {
@@ -936,17 +1003,19 @@ export const autoEscrowApi = {
     return request<ApiSubmission>(`/submissions/${path(submissionId)}/review`, { method: "POST", body: { decision, note } });
   },
 
-  createSubmissionDispute(submissionId: number | string, payload: Record<string, unknown>) {
-    return request<ApiDispute>(`/submissions/${path(submissionId)}/disputes`, { method: "POST", body: payload });
+  createSubmissionDispute(submissionId: number | string, reason: string) {
+    if (reason.trim().length < 10) throw new Error("Please explain the dispute in at least 10 characters.");
+    return request<ApiDispute>(`/submissions/${path(submissionId)}/disputes`, { method: "POST", body: { reason: reason.trim() } });
   },
 
   getLedger(escrowId: number | string) {
     return request<ApiLedgerEntry[]>(`/escrows/${path(escrowId)}/ledger`);
   },
 
-  listDisputes(status?: string) {
+  async listDisputes(status?: string) {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<ApiDispute[]>(`/disputes${query}`);
+    const response = await request<ApiList<ApiDispute> | ApiDispute[]>(`/disputes${query}`);
+    return normalizeListResponse(response);
   },
 
   createDispute(jobId: number | string, payload: Record<string, unknown>) {
@@ -957,8 +1026,9 @@ export const autoEscrowApi = {
     return request<ApiDispute>(`/disputes/${path(disputeId)}/review`, { method: "POST", body: { rationale } });
   },
 
-  resolveDispute(disputeId: number | string, resolution: string, rationale: string) {
-    return request<ApiDispute>(`/disputes/${path(disputeId)}/resolve`, { method: "POST", body: { resolution, rationale } });
+  resolveDispute(disputeId: number | string, resolution: "release" | "refund", note: string) {
+    if (note.trim().length < 10) throw new Error("Resolution note must contain at least 10 characters.");
+    return request<ApiDispute>(`/disputes/${path(disputeId)}/resolve`, { method: "POST", body: { resolution, note: note.trim() } });
   },
 
   reviseAgreement(agreementId: number | string, payload: Record<string, unknown>) {
