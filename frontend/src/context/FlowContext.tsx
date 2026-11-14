@@ -10,6 +10,7 @@ import {
   ApiMatchRun,
   ApiSubmission,
   ApiVerification,
+  isAgreementFullyAccepted,
   AutoEscrowApiError,
   autoEscrowApi,
 } from "@/lib/api";
@@ -86,8 +87,8 @@ const transactionFromJob = (
   match?: ApiMatchRun,
   extras: { agreement?: ApiAgreement | null; escrow?: ApiEscrow | null; execution?: ApiExecution | null; verification?: ApiVerification | null } = {},
 ): Transaction => {
-  const selectedCandidate = match?.candidates?.find((candidate) => candidate.agent_id === agent.backendId);
-  const score = selectedCandidate ? Number(selectedCandidate.score) : 82;
+  const selectedCandidate = match?.matches?.find((candidate) => String(candidate.agent_id) === String(agent.backendId));
+  const score = selectedCandidate ? Number(selectedCandidate.score) : 0;
   const deadline = job.deadline ?? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
   const updatedAt = job.updated_at || job.created_at || new Date().toISOString();
   return {
@@ -95,7 +96,7 @@ const transactionFromJob = (
     buyer: job.requester_agent_id ? `Requester Agent #${job.requester_agent_id}` : "AutoEscrow Requester",
     provider: agent,
     task: job.title,
-    amount: Number(job.budget ?? 0),
+    amount: Number(job.budget_amount ?? 0),
     currency: job.currency ?? "VCR",
     status: workflowStatus(job, extras.escrow || null, extras.execution || null, extras.verification || null),
     riskScore: Math.max(0, Math.min(100, Math.round(100 - score))),
@@ -139,23 +140,23 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
     if (!agent.backendId) throw new Error("This agent is not connected to the AutoEscrow registry yet.");
     const job = await autoEscrowApi.createJob({
       title: options.title || `Task dispatch for ${agent.name}`,
-      description: options.description || `Execute the requested AutoEscrow task with ${agent.name}.`,
+      description: options.description || `Execute the requested task brief for ${agent.name}.`,
+      category: options.taskCategory || agent.backendTaskCategories?.[0] || "general",
       required_skills: options.requiredSkills || agent.backendSkills || [],
-      task_category: options.taskCategory || agent.backendTaskCategories?.[0] || "general",
-      expected_output: options.expectedOutput || "A structured task result.",
-      acceptance_criteria: options.acceptanceCriteria || ["The requested output is returned and can be verified."],
-      budget: options.budget || (agent.priceAmount > 0 ? agent.priceAmount.toFixed(2) : "35.00"),
-      currency: options.currency || "USD",
+      required_capabilities: agent.capabilities || [],
+      budget_amount: options.budget || (agent.priceAmount > 0 ? agent.priceAmount.toFixed(2) : "35.00"),
+      currency: "VCR",
       deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
-      additional_instructions: "Created by the AutoEscrow frontend integration.",
+      expected_deliverables: (options.expectedOutput || "A structured task result.").split("\n").map((item) => item.trim()).filter(Boolean),
+      status: "open",
+      visibility: "public",
     });
     const match = await autoEscrowApi.computeMatches(job.id);
-    const candidate = match.candidates.find((item) => item.agent_id === agent.backendId && item.eligible);
+    const candidate = match.matches.find((item) => String(item.agent_id) === String(agent.backendId) && item.eligible !== false);
     if (!candidate) {
-      throw new Error(`The backend did not mark ${agent.name} as an eligible match for this job.`);
+      throw new Error(`The backend did not return ${agent.name} as a matching agent for this job.`);
     }
-    const selectedJob = await autoEscrowApi.selectAgent(job.id, agent.backendId, match.run_id);
-    return { job: selectedJob, match };
+    return { job, match };
   };
 
   const startTransactionWithAgent = async (agent: Agent, options: StartTransactionOptions = {}) => run(async () => {
@@ -188,21 +189,25 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
       currency: input.currency || "USD",
     });
     const agreement = await autoEscrowApi.createAgreement({
-      job_id: job.id,
-      agent_id: agent.backendId,
+      job_id: String(job.id),
+      agent_id: String(agent.backendId),
       terms: {
         scope: job.description,
-        expected_deliverable: job.expected_output,
-        acceptance_criteria: job.acceptance_criteria,
-        verification_method: "Deterministic backend verification",
-        cancellation_conditions: "Cancel only before execution starts.",
-        dispute_conditions: "Open a dispute when the deliverable or verification result is contested.",
+        deliverables: job.expected_deliverables,
+        budget_amount: String(job.budget_amount ?? input.budget),
+        currency: "VCR",
+        deadline: job.deadline ?? new Date(Date.now() + 7 * 86400000).toISOString(),
+        responsibilities: ["Requester provides the brief and timely feedback.", "Agent owner supplies the agreed deliverables."],
+        acceptance_conditions: ["The agreed deliverables are supplied and reviewed by the requester."],
       },
     });
-    const acceptedAgreement = await autoEscrowApi.acceptAgreement(agreement.id);
-    const escrow = await autoEscrowApi.fundEscrow(job.id, {
-      idempotency_key: `frontend-${job.id}`,
-      reference: "frontend-initialization",
+    const acceptedAgreement = await autoEscrowApi.acceptAgreement(agreement.id, agreement.current_version_number);
+    if (!isAgreementFullyAccepted(acceptedAgreement)) {
+      throw new Error("The backend has not confirmed both parties' acceptance. Escrow funding is blocked until the agreement is active.");
+    }
+    const createdEscrow = await autoEscrowApi.createEscrow(acceptedAgreement.id);
+    const escrow = await autoEscrowApi.fundEscrow(createdEscrow.id, {
+      idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
     });
     setSelectedAgent(agent);
     setActiveTransaction({
@@ -234,23 +239,41 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
     return activeTransaction.backendJobId;
   };
 
-  const proposeAgreement = async (payload: ApiAgreementCreateRequest = {}) => run(async () => {
-    const agreement = await autoEscrowApi.createAgreement(requireJobId(), payload);
+  const proposeAgreement = async (payload: Partial<ApiAgreementCreateRequest> = {}) => run(async () => {
+    const job = await autoEscrowApi.getJob(requireJobId());
+    if (!selectedAgent.backendId) throw new Error("Select an agent returned by the live marketplace before creating an agreement.");
+    const agreement = await autoEscrowApi.createAgreement({
+      job_id: String(job.id),
+      agent_id: String(selectedAgent.backendId),
+      terms: payload.terms ?? {
+        scope: job.description,
+        deliverables: job.expected_deliverables ?? [],
+        budget_amount: String(job.budget_amount ?? "0"),
+        currency: "VCR",
+        deadline: job.deadline ?? new Date(Date.now() + 7 * 86400000).toISOString(),
+        responsibilities: ["Requester provides the brief and timely feedback.", "Agent owner supplies the agreed deliverables."],
+        acceptance_conditions: ["The agreed deliverables are supplied and reviewed by the requester."],
+      },
+    });
     setActiveTransaction((previous) => ({ ...previous, agreementId: agreement.id, status: "NEGOTIATED" }));
     return agreement;
   });
 
   const acceptCurrentAgreement = async () => run(async () => {
     if (!activeTransaction.agreementId) throw new Error("No agreement is active for this task.");
-    const agreement = await autoEscrowApi.acceptAgreement(activeTransaction.agreementId);
-    setTransactionStatus("NEGOTIATED");
+    const current = await autoEscrowApi.getAgreement(activeTransaction.agreementId);
+    const agreement = await autoEscrowApi.acceptAgreement(current.id, current.current_version_number);
+    if (isAgreementFullyAccepted(agreement)) setTransactionStatus("NEGOTIATED");
     return agreement;
   });
 
   const fundCurrentEscrow = async () => run(async () => {
-    const escrow = await autoEscrowApi.fundEscrow(requireJobId(), {
-      idempotency_key: `frontend-${requireJobId()}`,
-      reference: "frontend-funding",
+    if (!activeTransaction.agreementId) throw new Error("Accept the current agreement before funding escrow.");
+    const agreement = await autoEscrowApi.getAgreement(activeTransaction.agreementId);
+    if (!isAgreementFullyAccepted(agreement)) throw new Error("The backend has not confirmed both parties' agreement acceptance.");
+    const created = await autoEscrowApi.createEscrow(agreement.id);
+    const escrow = await autoEscrowApi.fundEscrow(created.id, {
+      idempotency_key: `autoescrow:escrow:${created.id}:fund:v1`,
     });
     setActiveTransaction((previous) => ({ ...previous, escrowId: escrow.id, status: "FUNDS_LOCKED" }));
     return escrow;

@@ -2,7 +2,7 @@ import type { ApiAgent } from "@/lib/api";
 
 export interface Agent {
   id: string;
-  backendId?: number;
+  backendId?: string | number;
   externalId?: string;
   name: string;
   category: "Engineering" | "Data & ML" | "Security Audit" | "Market Analysis" | "Vision";
@@ -167,13 +167,12 @@ export const mapApiAgentToAgent = (agent: ApiAgent): Agent => {
   const completedTasks = numberFromStats(stats, "completed_jobs", 0);
   const metadata = agent.metadata ?? {} as Record<string, unknown>;
   const autonomy = typeof metadata.autonomy_level === "string" ? metadata.autonomy_level : "Standard";
-  const parsedId = Number(agent.id);
 
   const rawPrice = typeof agent.price_amount === "string" ? Number(agent.price_amount) : typeof agent.price_amount === "number" ? agent.price_amount : 0;
 
   return {
     id: String(agent.id),
-    backendId: Number.isFinite(parsedId) ? parsedId : undefined,
+    backendId: agent.id,
     externalId: typeof agent.external_id === "string" ? agent.external_id : undefined,
     name: agent.name,
     category: categoryFromBackend(categories),
