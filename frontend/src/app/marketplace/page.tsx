@@ -9,11 +9,10 @@ import { ApiAgent, ApiList, autoEscrowApi } from "@/lib/api";
 type AgentFilters = {
   availability: string;
   category: string;
-  format: string;
   status: string;
 };
 
-const emptyFilters: AgentFilters = { availability: "", category: "", format: "", status: "" };
+const emptyFilters: AgentFilters = { availability: "", category: "", status: "" };
 const asSearchText = (values: unknown[]) => values.filter((value): value is string => typeof value === "string").join(" ").toLowerCase();
 const displayList = (values: string[] | undefined) => values?.length ? values.join(", ") : "Not provided";
 
@@ -42,7 +41,7 @@ export default function MarketplacePage() {
     let active = true;
     setLoaded(false);
     setError(null);
-    autoEscrowApi.listMarketplaceAgents({ limit: 100, skip: 0 }).then((response: ApiList<ApiAgent>) => {
+    autoEscrowApi.listMarketplaceAgents({ limit: 100, offset: 0 }).then((response: ApiList<ApiAgent>) => {
       if (active) setAgents(Array.isArray(response.items) ? response.items : []);
     }).catch((caught: unknown) => {
       if (active) setError(caught instanceof Error ? caught.message : "Unable to load registered agents.");
@@ -77,7 +76,6 @@ export default function MarketplacePage() {
   const options = useMemo(() => ({
     availability: uniqueAgentValues(agents, (agent) => agent.availability),
     category: uniqueAgentValues(agents, (agent) => [...(agent.category ? [agent.category] : []), ...(agent.task_categories ?? []), ...(agent.supported_task_types ?? [])]),
-    format: uniqueAgentValues(agents, (agent) => agent.supported_output_formats),
     status: uniqueAgentValues(agents, (agent) => agent.status),
   }), [agents]);
 
@@ -99,12 +97,10 @@ export default function MarketplacePage() {
         ...(agent.skills ?? []),
         ...(agent.task_categories ?? []),
         ...(agent.supported_task_types ?? []),
-        ...(agent.supported_output_formats ?? []),
       ]);
       return (!query || searchable.includes(query))
         && (!filters.availability || agent.availability === filters.availability)
         && (!filters.category || agent.category === filters.category || agent.task_categories?.includes(filters.category) || agent.supported_task_types?.includes(filters.category))
-        && (!filters.format || agent.supported_output_formats?.includes(filters.format))
         && (!filters.status || agent.status === filters.status);
     });
   }, [agents, filters, search]);
@@ -133,7 +129,7 @@ export default function MarketplacePage() {
             </div>
             <h1 className="mb-4 text-4xl font-bold text-white md:text-5xl">{profileId ? "Agent profile" : "Agent Marketplace"}</h1>
             <p className="max-w-2xl text-sm font-light leading-relaxed text-[#A3A3A3] md:text-base">
-              Browse agent records returned by the V2 marketplace. Profiles and filters use the fields published by the backend.
+              Browse synthetic demo registry records returned by the V2 marketplace. These listings are sample data and are not connected to executing agent runtimes.
             </p>
           </div>
           {!profileId && <div className="flex w-full flex-col gap-3 lg:w-auto lg:min-w-[520px]">
@@ -141,17 +137,16 @@ export default function MarketplacePage() {
               <Search size={16} className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-[#888888] transition-colors group-focus-within:text-white" />
               <input
                 type="search"
-                placeholder="Search name, skills, capabilities, formats…"
+                placeholder="Search name, skills and capabilities…"
                 aria-label="Search marketplace agents"
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="w-full rounded-xl border border-white/15 bg-white/[0.04] py-3.5 pl-12 pr-4 text-sm text-white placeholder-[#888888] shadow-sm backdrop-blur-xl focus:border-white/35 focus:outline-none"
               />
             </label>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
               <FilterSelect label="Availability" value={filters.availability} values={options.availability} onChange={(value) => setFilters({ ...filters, availability: value })} />
               <FilterSelect label="Category" value={filters.category} values={options.category} onChange={(value) => setFilters({ ...filters, category: value })} />
-              <FilterSelect label="Format" value={filters.format} values={options.format} onChange={(value) => setFilters({ ...filters, format: value })} />
               <FilterSelect label="Status" value={filters.status} values={options.status} onChange={(value) => setFilters({ ...filters, status: value })} />
             </div>
           </div>}
@@ -213,7 +208,6 @@ function AgentCard({ agent, onOpen }: { agent: ApiAgent; onOpen: () => void }) {
       <DataField label="Capabilities" values={agent.capabilities} />
       <DataField label="Skills" values={agent.skills} />
       <DataField label="Task categories" values={[...categories, ...(agent.supported_task_types ?? [])].filter((value, index, list) => list.indexOf(value) === index)} />
-      <DataField label="Output formats" values={agent.supported_output_formats} />
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-white/10 pt-4 text-xs">
         <p className="flex items-center gap-2 text-[#A3A3A3]"><Filter size={13} /> {agent.availability ?? "Availability unknown"}</p>
         <p className="flex items-center gap-2 text-[#A3A3A3]"><Activity size={13} /> {agent.estimated_completion_minutes == null ? "No estimate" : `${agent.estimated_completion_minutes} min estimate`}</p>
@@ -254,7 +248,6 @@ function AgentProfile({ agent }: { agent: ApiAgent }) {
       <ProfileList label="Capabilities" values={agent.capabilities} />
       <ProfileList label="Skills" values={agent.skills} />
       <ProfileList label="Task categories" values={[...(agent.task_categories ?? []), ...(agent.supported_task_types ?? [])].filter((value, index, list) => list.indexOf(value) === index)} />
-      <ProfileList label="Supported output formats" values={agent.supported_output_formats} />
     </div>
     <dl className="mt-6 grid gap-4 border-t border-white/10 pt-5 sm:grid-cols-2">
       <ProfileValue label="Pricing model" value={agent.pricing_model} />
