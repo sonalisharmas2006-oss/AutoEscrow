@@ -797,7 +797,7 @@ export const autoEscrowApi = {
     const [first, second] = args;
     const hasAgreementId = typeof first === "number" || typeof first === "string";
     const agreementId = hasAgreementId ? first as number | string : undefined;
-    const payload = hasAgreementId ? (typeof second === "string" ? { rationale: second } : (second ?? { version_number: 1 })) : (first ?? { version_number: 1 });
+    const payload = hasAgreementId ? (typeof second === "string" ? { rationale: second } : (second ?? {})) : (first ?? {});
     if (agreementId === undefined) {
       throw new Error("An agreement id is required to accept an agreement.");
     }
