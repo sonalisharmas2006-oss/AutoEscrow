@@ -346,10 +346,9 @@ export interface ApiAgreementCreateRequest {
 }
 
 export interface ApiSubmissionCreateRequest {
-  submitted_output: string;
-  evidence?: Record<string, unknown>;
-  notes?: string;
-  agent_id?: number | string;
+  summary: string;
+  deliverables: string[];
+  executor: string;
 }
 
 export interface ApiAgreementTerms {
@@ -845,7 +844,7 @@ export const autoEscrowApi = {
   },
 
   async getAgreementForJob(jobId: number | string) {
-    const agreements = normalizeApiList(await request<ApiList<ApiAgreement> | ApiAgreement[]>("/agreements"));
+    const agreements = normalizeApiList(await request<ApiList<ApiAgreement> | ApiAgreement[]>("/agreements?limit=100&offset=0"));
     return agreements.items.find((agreement) => String(agreement.job_id) === String(jobId)) ?? null;
   },
 
@@ -901,13 +900,15 @@ export const autoEscrowApi = {
     return Promise.reject(new AutoEscrowApiError(501, "The backend exposes matching as a POST computation; rerun matching to refresh results."));
   },
 
+  async getEscrowForAgreement(agreementId: number | string) {
+    const escrows = await autoEscrowApi.listEscrows({ limit: 100, offset: 0 });
+    return escrows.items.find((item) => String(item.agreement_id) === String(agreementId)) ?? null;
+  },
+
   async getEscrowForJob(jobId: number | string) {
-    const [agreement, escrows] = await Promise.all([
-      autoEscrowApi.getAgreementForJob(jobId),
-      autoEscrowApi.listEscrows(),
-    ]);
+    const agreement = await autoEscrowApi.getAgreementForJob(jobId);
     if (!agreement) return null;
-    return escrows.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? null;
+    return autoEscrowApi.getEscrowForAgreement(agreement.id);
   },
 
   getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
@@ -982,8 +983,8 @@ export const autoEscrowApi = {
   },
 
   async getSubmissions(jobId: number | string) {
-    const response = await request<ApiList<ApiSubmission> | ApiSubmission[]>(`/jobs/${path(jobId)}/submissions`);
-    return normalizeListResponse(response);
+    const escrow = await autoEscrowApi.getEscrowForJob(jobId);
+    return escrow ? autoEscrowApi.getEscrowSubmissions(escrow.id) : [];
   },
 
   async getEscrowSubmissions(escrowId: number | string) {
