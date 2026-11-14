@@ -69,6 +69,7 @@ export default function GuidedWorkflowPage() {
         currency: "VCR",
         deadline: new Date(form.deadline).toISOString(),
         expected_deliverables: splitLines(form.deliverables),
+        status: "open",
       });
       setJob(created);
       setStep(1);
@@ -116,13 +117,22 @@ export default function GuidedWorkflowPage() {
         version_number: agreement.current_version_number,
       });
       setAgreement(accepted);
-      setStep(4);
-      setNotice("Agreement acceptance recorded by the backend.");
+      if (accepted.status === "active") {
+        setStep(4);
+        setNotice("Both parties have accepted the agreement. Simulated escrow funding is now available.");
+      } else {
+        setStep(3);
+        setNotice("Your acceptance was recorded. The agreement is still awaiting the other party; escrow funding remains blocked until the backend marks it active.");
+      }
     });
   }
 
   async function fund() {
     if (!job || !agreement) return;
+    if (agreement.status !== "active") {
+      setError("Escrow cannot be created until both parties have accepted the current agreement version.");
+      return;
+    }
     await run(async () => {
       const created = await api.createEscrow(agreement.id);
       const funded = await api.fundEscrow(created.id, {
@@ -254,7 +264,9 @@ export default function GuidedWorkflowPage() {
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
                 <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
                 <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
-                {step === 3 && <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number} <ShieldCheck size={16} /></Action>}
+                {step === 3 && (agreement.acceptances.some((item) => item.user_id === authState.getUser()?.id && item.version_number === agreement.current_version_number)
+                  ? <p className="mt-4 rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Your acceptance is recorded. Waiting for the agent owner to accept this version before escrow can be created.</p>
+                  : <Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number} <ShieldCheck size={16} /></Action>)}
               </div>
             )}
 

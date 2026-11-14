@@ -813,7 +813,7 @@ export const autoEscrowApi = {
   },
 
   createAgreementVersion(agreementId: number | string, payload: Record<string, unknown>) {
-    return request<ApiAgreement>(`/agreements/${path(agreementId)}/revise`, { method: "POST", body: payload });
+    return request<ApiAgreement>(`/agreements/${path(agreementId)}/versions`, { method: "POST", body: payload });
   },
 
   acceptAgreement(...args: unknown[]) {
