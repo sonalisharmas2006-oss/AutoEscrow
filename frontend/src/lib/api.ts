@@ -61,7 +61,7 @@ export interface ApiAgent {
 }
 
 export interface ApiJob {
-  id: string | number;
+  id: string;
   title: string;
   description: string;
   category: string;
@@ -77,18 +77,12 @@ export interface ApiJob {
   updated_at: string;
   metadata: Record<string, unknown>;
   public_id: string;
-  requester_agent_id: number | null;
-  executor_agent_id: number | null;
-  selected_agent_id: number | null;
+  requester_agent_id: string | number | null;
+  executor_agent_id: string | number | null;
+  selected_agent_id: string | number | null;
   selected_match_run_id: string | null;
   selected_matching_score: string | null;
   selected_scoring_version: string | null;
-  task_category: string;
-  expected_output: string;
-  acceptance_criteria: string[];
-  additional_instructions: string | null;
-  budget: string;
-  requirements: Record<string, unknown>;
 }
 
 export interface ApiMatchReason {
@@ -105,7 +99,7 @@ export interface ApiMatchCandidate {
   agent_name: string;
   agent: ApiAgent;
   score: number;
-  reasons: ApiMatchReason[];
+  reasons: Array<ApiMatchReason | string>;
   explanation?: string;
   eligible?: boolean;
   matched_skills?: string[];
@@ -158,16 +152,6 @@ export interface ApiAgreement {
   acceptances: ApiAgreementAcceptance[];
   created_at: string;
   updated_at: string;
-  terms?: Record<string, unknown>;
-  terms_hash?: string | null;
-  proposed_budget?: string | null;
-  proposed_deadline?: string | null;
-  amount?: string;
-  currency?: string;
-  proposal_version?: number;
-  accepted_version?: number | null;
-  accepted_at?: string | null;
-  proposal_history?: Record<string, unknown>[];
 }
 
 export interface ApiEscrow {
@@ -224,7 +208,7 @@ export interface ApiLedgerHistory {
 }
 
 export interface ApiSubmission {
-  id: string | number;
+  id: string;
   escrow_id: string;
   job_id: string;
   attempt: number;
@@ -363,9 +347,9 @@ export interface ApiAgreementTerms {
 }
 
 export interface ApiDispute {
-  id: string | number;
-  job_id: string | number;
-  escrow_id?: string | number | null;
+  id: string;
+  job_id: string;
+  escrow_id?: string | null;
   category: string;
   status: string;
   reason: string;
@@ -700,13 +684,12 @@ const normalizeMatchRun = (response: ApiMatchRun): ApiMatchRun => {
 };
 
 export const isAgreementFullyAccepted = (agreement: ApiAgreement): boolean => {
-  const statusAccepted = ["accepted", "active"].includes(String(agreement.status).toLowerCase());
-  const version = agreement.current_version_number ?? agreement.proposal_version;
-  const acceptedVersion = agreement.accepted_version ?? version;
-  const acceptances = Array.isArray(agreement.acceptances) ? agreement.acceptances : [];
-  const distinctParties = new Set(acceptances.map((item) => item.party || item.user_id).filter(Boolean));
-  const recordsConfirmBothParties = acceptances.length === 0 || distinctParties.size >= 2;
-  return statusAccepted && acceptedVersion != null && acceptedVersion === version && recordsConfirmBothParties;
+  const version = agreement.current_version_number;
+  const versionAcceptances = (agreement.acceptances ?? []).filter((item) => item.version_number === version);
+  const distinctParties = new Set(versionAcceptances.map((item) => item.party || item.user_id).filter(Boolean));
+  return ["accepted", "active"].includes(String(agreement.status).toLowerCase()) &&
+    version > 0 &&
+    distinctParties.size >= 2;
 };
 
 export const autoEscrowApi = {
@@ -789,7 +772,7 @@ export const autoEscrowApi = {
   listMarketplaceAgents(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgent>>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true });
+    return request<ApiList<ApiAgent> | ApiAgent[]>(`/marketplace/agents${query.size ? `?${query}` : ""}`, { public: true }).then(normalizeApiList);
   },
 
   getMarketplaceAgent(agentId: number | string) {
@@ -803,9 +786,8 @@ export const autoEscrowApi = {
   listJobs(params: Record<string, string | number | undefined> = {}, options: { public?: boolean; session?: "required" | "optional" } = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    void options;
     const endpoint = "/jobs";
-    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`).then(normalizeApiList);
+    return request<ApiList<ApiJob> | ApiJob[]>(`${endpoint}${query.size ? `?${query}` : ""}`, { public: options.public }).then(normalizeApiList);
   },
 
   getJob(jobId: number | string) {
@@ -829,16 +811,6 @@ export const autoEscrowApi = {
     return request<ApiMatchRun>(`/matching/jobs/${path(jobId)}`, { method: "POST" }).then(normalizeMatchRun);
   },
 
-  selectJobAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return request<ApiJob>(`/jobs/${path(jobId)}/matches/${path(agentId)}/select`, {
-      method: "POST", body: runId ? { run_id: runId } : {},
-    });
-  },
-
-  selectAgent(jobId: number | string, agentId: number | string, runId?: string) {
-    return autoEscrowApi.selectJobAgent(jobId, agentId, runId);
-  },
-
   createAgreement(payload: ApiAgreementCreateRequest) {
     return request<ApiAgreement>("/agreements", { method: "POST", body: payload });
   },
@@ -851,7 +823,7 @@ export const autoEscrowApi = {
   listAgreements(params: Record<string, string | number | undefined> = {}) {
     const query = new URLSearchParams();
     Object.entries(params).forEach(([key, value]) => value !== undefined && query.set(key, String(value)));
-    return request<ApiList<ApiAgreement>>(`/agreements${query.size ? `?${query}` : ""}`);
+    return request<ApiList<ApiAgreement> | ApiAgreement[]>(`/agreements${query.size ? `?${query}` : ""}`).then(normalizeApiList);
   },
 
   getAgreement(agreementId: number | string) {
@@ -911,24 +883,8 @@ export const autoEscrowApi = {
     return autoEscrowApi.getEscrowForAgreement(agreement.id);
   },
 
-  getExecution(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiExecution>(`/jobs/${path(jobId)}/execution`);
-  },
-
-  getVerification(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiVerification | null>(`/jobs/${path(jobId)}/verification`);
-  },
-
-  startExecution(jobId: number | string) {
-    return request<ApiExecution>(`/jobs/${path(jobId)}/start`, { method: "POST" });
-  },
-
-  submitJob(jobId: number | string, payload: ApiSubmissionCreateRequest) {
-    return request<ApiSubmission>(`/jobs/${path(jobId)}/submit`, { method: "POST", body: payload });
-  },
-
-  verifyJob(jobId: number | string) {
-    return request<ApiVerification>(`/jobs/${path(jobId)}/verify`, { method: "POST" });
+  submitJob(escrowId: number | string, payload: ApiSubmissionCreateRequest) {
+    return request<ApiSubmission>(`/escrows/${path(escrowId)}/submissions`, { method: "POST", body: payload });
   },
 
   getLedgerBalance() {
@@ -973,15 +929,6 @@ export const autoEscrowApi = {
     return request<ApiDashboardExecutionMetrics>("/dashboard/execution");
   },
 
-  getJobDisputes(jobId: number | string, status?: string, _options?: { session?: "required" | "optional" }) {
-    const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<ApiDispute[]>(`/jobs/${path(jobId)}/disputes${query}`);
-  },
-
-  getJobEvents(jobId: number | string, _options?: { session?: "required" | "optional" }) {
-    return request<ApiJobEvent[]>(`/jobs/${path(jobId)}/events`);
-  },
-
   async getSubmissions(jobId: number | string) {
     const escrow = await autoEscrowApi.getEscrowForJob(jobId);
     return escrow ? autoEscrowApi.getEscrowSubmissions(escrow.id) : [];
@@ -1017,14 +964,6 @@ export const autoEscrowApi = {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
     const response = await request<ApiList<ApiDispute> | ApiDispute[]>(`/disputes${query}`);
     return normalizeListResponse(response);
-  },
-
-  createDispute(jobId: number | string, payload: Record<string, unknown>) {
-    return request<ApiDispute>(`/jobs/${path(jobId)}/disputes`, { method: "POST", body: payload });
-  },
-
-  reviewDispute(disputeId: number | string, rationale: string) {
-    return request<ApiDispute>(`/disputes/${path(disputeId)}/review`, { method: "POST", body: { rationale } });
   },
 
   resolveDispute(disputeId: number | string, resolution: "release" | "refund", note: string) {
