@@ -320,7 +320,7 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6 rounded-xl border border-white/15 bg-white/[0.06] p-5">
                 <div className="flex items-center gap-2 font-semibold"><CheckCircle2 size={18} /> Escrow settlement status</div>
                 <p className="mt-2 text-sm text-neutral-300">Escrow #{escrow.id} · {escrow.status} · {formatMoney(escrow.amount, escrow.currency)}</p>
-                <p className="mt-2 text-xs text-neutral-400">This is a simulated VCR ledger record. No real payment, blockchain transaction, agent execution, verification, or dispute action occurred.</p>
+                <p className="mt-2 text-xs text-neutral-400">VCR is simulated credit with no monetary value. No real payment gateway or blockchain transfer is involved.</p>
                 <p className="mt-4 text-xs text-neutral-500">The current backend does not expose a per-job audit-history endpoint. The account ledger is available in the dashboard.</p>
                 <Link href="/jobs" className="mt-5 inline-block underline">Open job registry →</Link>
               </div>
