@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
-import { ApiAgreement, ApiEscrow, ApiExecution, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, ApiVerification, authState, autoEscrowApi as api, formatMoney } from "@/lib/api";
+import { ApiAgreement, ApiEscrow, ApiJob, ApiMatchCandidate, ApiMatchRun, ApiSubmission, authState, autoEscrowApi as api, formatMoney, isAgreementFullyAccepted } from "@/lib/api";
 
 const steps = ["Define job", "Match agents", "Select agent", "Accept agreement", "Fund simulated escrow", "Run demo execution", "Submit & verify"]
 const futureDate = () => new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16);
@@ -18,13 +18,8 @@ export default function GuidedWorkflowPage() {
   const [selected, setSelected] = useState<ApiMatchCandidate | null>(null);
   const [agreement, setAgreement] = useState<ApiAgreement | null>(null);
   const [escrow, setEscrow] = useState<ApiEscrow | null>(null);
-  const [execution, setExecution] = useState<ApiExecution | null>(null);
   const [submissions, setSubmissions] = useState<ApiSubmission[]>([]);
-  const [verification, setVerification] = useState<ApiVerification | null>(null);
-  const [output, setOutput] = useState("Sample deliverable: processed by the deterministic local demo executor. Illustrative output only.");
-  const [outputNotes, setOutputNotes] = useState("Deterministic Demo Execution — Sample Output");
   const [disputeReason, setDisputeReason] = useState("");
-  const [disputeDescription, setDisputeDescription] = useState("");
   const [demoResult, setDemoResult] = useState<Record<string, unknown> | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [form, setForm] = useState({
@@ -81,9 +76,10 @@ export default function GuidedWorkflowPage() {
         status: "open",
         visibility: "public",
       });
+      if (!created?.id) throw new Error("The backend returned a successful response without a job ID. The workflow cannot continue.");
       setJob(created);
       setStep(1);
-      setNotice("Job saved by the backend.");
+      setNotice(`Job #${created.id} was created by the backend.`);
     });
   }
 
@@ -94,7 +90,7 @@ export default function GuidedWorkflowPage() {
       setMatches(result);
       setSelected(null);
       setStep(2);
-      setNotice("Explainable match results loaded from the backend.");
+      setNotice(`${result.matches.length} matching agent(s) returned by the backend.`);
     });
   }
 
@@ -114,6 +110,7 @@ export default function GuidedWorkflowPage() {
           acceptance_conditions: splitLines(form.criteria),
         },
       });
+      if (!proposal?.id) throw new Error("The backend did not return an agreement ID. The workflow cannot continue.");
       setAgreement(proposal);
       setStep(3);
       setNotice("Versioned agreement proposal saved by the backend. Review the terms before accepting.");
@@ -122,15 +119,13 @@ export default function GuidedWorkflowPage() {
 
   async function accept() {
     if (!agreement) return;
+    if (!window.confirm("Accept this versioned agreement? The acceptance will be recorded by the backend.")) return;
     await run(async () => {
-      const version = agreement.current_version_number ?? agreement.proposal_version ?? 1;
+      const version = agreement.current_version_number;
       await api.acceptAgreement(agreement.id, version);
       const latest = await api.getAgreement(agreement.id);
       setAgreement(latest);
-      const acceptanceParties = new Set((latest.acceptances ?? []).map((item) => item.party || item.user_id).filter(Boolean));
-      const hasBothParties = latest.acceptances?.length ? acceptanceParties.size >= 2 : true;
-      const acceptedStatus = ["accepted", "active"].includes(String(latest.status).toLowerCase());
-      if (acceptedStatus && hasBothParties && (latest.accepted_version ?? latest.current_version_number) === version) {
+      if (isAgreementFullyAccepted(latest)) {
         setStep(4);
         setNotice("The backend confirms this agreement version is fully accepted. Simulated escrow funding is now available.");
       } else {
@@ -142,37 +137,38 @@ export default function GuidedWorkflowPage() {
 
   async function fund() {
     if (!job || !agreement) return;
-    const acceptanceParties = new Set((agreement.acceptances ?? []).map((item) => item.party || item.user_id).filter(Boolean));
-    const hasBothParties = agreement.acceptances?.length ? acceptanceParties.size >= 2 : true;
-    if (!["accepted", "active"].includes(String(agreement.status).toLowerCase()) ||
-        (agreement.accepted_version ?? agreement.current_version_number) !== agreement.current_version_number ||
-        !hasBothParties) {
+    if (!isAgreementFullyAccepted(agreement)) {
       setError("Escrow funding requires backend-confirmed acceptance of the current agreement version by both parties.");
       return;
     }
+    if (!window.confirm("Create and fund this simulated VCR escrow? No real money will move.")) return;
     await run(async () => {
-      let createdEscrow = await api.createEscrow(agreement.id);
-      const fundedEscrow = await api.fundEscrow(createdEscrow.id, {
+      const existingEscrow = await api.getEscrowForAgreement(agreement.id);
+      const createdEscrow = existingEscrow ?? await api.createEscrow(agreement.id);
+      if (String(authState.getUser()?.id) !== String(createdEscrow.buyer_user_id)) {
+        throw new Error("Only the escrow buyer can fund this agreement.");
+      }
+      const alreadyFunded = ["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase());
+      const fundedEscrow = alreadyFunded ? createdEscrow : await api.fundEscrow(createdEscrow.id, {
         idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
       });
       const listed = await api.listEscrows({ limit: 100, offset: 0 });
-      const persistedEscrow = listed.items.find((item) => String(item.id) === String(fundedEscrow.id)) ?? await api.getEscrow(fundedEscrow.id);
-      createdEscrow = persistedEscrow;
-      setEscrow(createdEscrow);
+      const persistedEscrow = listed.items.find((item) => String(item.agreement_id) === String(agreement.id)) ?? await api.getEscrow(fundedEscrow.id);
+      setEscrow(persistedEscrow);
       const [latestJob, latestAgreement, latestSubmissions] = await Promise.all([
         api.getJob(job.id),
         api.getAgreementForJob(job.id),
-        api.getEscrowSubmissions(createdEscrow.id),
+        api.getEscrowSubmissions(persistedEscrow.id),
       ]);
       setJob(latestJob);
       if (latestAgreement) setAgreement(latestAgreement);
       setSubmissions(latestSubmissions);
-      if (["funded", "held", "active"].includes(String(createdEscrow.status).toLowerCase())) {
+      if (["funded", "held", "active"].includes(String(persistedEscrow.status).toLowerCase())) {
         setStep(5);
         setNotice("The backend confirms the simulated VCR escrow is funded. No real funds moved.");
       } else {
         setStep(4);
-        setNotice(`Escrow was created, but its current backend status is ${createdEscrow.status}. The workflow has not marked funding complete.`);
+        setNotice(`Escrow was created, but its current backend status is ${persistedEscrow.status}. The workflow has not marked funding complete.`);
       }
     });
   }
@@ -192,7 +188,7 @@ export default function GuidedWorkflowPage() {
       setSubmissions(latestSubmissions);
       if (latestSubmissions.length) setStep(6);
       else if (latestEscrow && ["funded", "held", "active"].includes(String(latestEscrow.status).toLowerCase())) setStep(5);
-      else if (latestAgreement && ["accepted", "active"].includes(String(latestAgreement.status).toLowerCase())) setStep(4);
+      else if (latestAgreement && isAgreementFullyAccepted(latestAgreement)) setStep(4);
       else if (latestAgreement) setStep(3);
       else setStep(1);
     });
@@ -250,7 +246,7 @@ export default function GuidedWorkflowPage() {
             <TextArea label="Expected deliverables (one per line)" value={form.deliverables} onChange={(deliverables) => setForm({ ...form, deliverables })} rows={2} />
             <TextArea label="Acceptance conditions (one per line)" value={form.criteria} onChange={(criteria) => setForm({ ...form, criteria })} rows={3} />
             <TextArea label="Responsibilities (one per line)" value={form.responsibilities} onChange={(responsibilities) => setForm({ ...form, responsibilities })} rows={2} />
-            <Action onClick={() => void createJob()} disabled={busy || !authenticated || form.title.trim().length < 3 || !form.description.trim() || splitTags(form.skills).length === 0 || splitTags(form.capabilities).length === 0 || splitLines(form.deliverables).length === 0 || splitLines(form.criteria).length === 0 || splitLines(form.responsibilities).length === 0 || !form.deadline}>
+            <Action onClick={() => void createJob()} disabled={busy || !authenticated || form.title.trim().length < 3 || !form.description.trim() || splitTags(form.skills).length === 0 || splitTags(form.capabilities).length === 0 || splitLines(form.deliverables).length === 0 || splitLines(form.criteria).length === 0 || splitLines(form.responsibilities).length === 0 || !Number.isFinite(Number(form.budget)) || Number(form.budget) <= 0 || !form.deadline || new Date(form.deadline).getTime() <= Date.now()}>
               Create job and continue <ArrowRight size={16} />
             </Action>
           </section>
@@ -273,13 +269,14 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6">
                 <h3 className="font-semibold">Matching results</h3>
                 <p className="mt-1 text-xs text-neutral-500">Scores, component weights and explanations are returned by the backend.</p>
+                {matches?.weights && <p className="mt-2 text-[11px] text-neutral-500">Scoring weights: {Object.entries(matches.weights).map(([key, value]) => `${key} ${value}`).join(" · ")}</p>}
                 {available.length === 0 ? <div className="mt-4 rounded-xl border border-white/10 p-4 text-sm text-neutral-400"><p>The backend returned no matching agents for this job.</p><p className="mt-1 text-xs text-neutral-500">Try adjusting the required skills, capabilities or VCR budget, then compute matches again.</p><Action onClick={() => void computeMatches()} disabled={busy}>Retry matching <RefreshCw size={14}/></Action></div> : (
                   <div className="mt-4 grid gap-3 md:grid-cols-2">
                     {available.map((candidate) => (
                       <button type="button" key={candidate.agent_id} onClick={() => setSelected(candidate)} className={`rounded-xl border p-4 text-left ${selected?.agent_id === candidate.agent_id ? "border-white/50 bg-white/10" : "border-white/10 bg-black/20"}`}>
                         <div className="flex justify-between gap-3"><strong>{candidate.agent?.name ?? candidate.agent_name}</strong><span className="text-sm tabular-nums">{candidate.score.toFixed(2)}</span></div>
                         <p className="mt-2 text-xs text-neutral-400">Listed skills: {candidate.agent?.skills?.join(", ") || "Not supplied"}</p>
-                        <ul className="mt-2 space-y-1">{candidate.reasons.map((reason, index) => <li key={index} className="text-[11px] text-neutral-500">{String(reason.component ?? "Match factor")}: {String(reason.explanation ?? JSON.stringify(reason))}</li>)}</ul>
+                        <ul className="mt-2 space-y-1">{candidate.reasons.map((reason, index) => <li key={index} className="text-[11px] text-neutral-500">{typeof reason === "string" ? reason : `${String(reason.component ?? "Match factor")}: ${String(reason.explanation ?? JSON.stringify(reason))}`}</li>)}</ul>
                       </button>
                     ))}
                   </div>
@@ -291,13 +288,13 @@ export default function GuidedWorkflowPage() {
             {step >= 3 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
-                <p className="mt-1 text-sm text-neutral-400">Proposal version {agreement.proposal_version ?? agreement.current_version_number ?? 1} · {agreement.status} · {formatMoney(agreement.proposed_budget ?? agreement.amount, agreement.currency ?? "VCR")}</p>
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.terms ?? agreement.current_version?.terms ?? {}, null, 2)}</pre>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
                 {step === 3 && (
                   <div className="mt-4">
-                    {["accepted", "active"].includes(String(agreement.status).toLowerCase()) && (agreement.acceptances?.length ?? 0) >= 2
-                      ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">Both parties' acceptance records are present for this agreement.</p>
-                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend reports the agreement as accepted by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? 1} <ShieldCheck size={16} /></Action></>}
+                    {isAgreementFullyAccepted(agreement)
+                      ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">The backend confirms this agreement is accepted. You can proceed to simulated escrow funding.</p>
+                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend confirms acceptance of the current version by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? 1} <ShieldCheck size={16} /></Action></>}
                   </div>
                 )}
               </div>
@@ -307,7 +304,7 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Accepted agreement</h3>
                 <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
-                <p className="mt-2 text-xs text-neutral-500">Accepted version: {agreement.accepted_version ?? "Not accepted"} · Acceptance records: {agreement.acceptances?.length ?? 0}</p>
+                <p className="mt-2 text-xs text-neutral-500">Current version: {agreement.current_version_number} · Acceptance records: {agreement.acceptances.length}</p>
                 {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
               </div>
             )}
@@ -319,11 +316,23 @@ export default function GuidedWorkflowPage() {
                 <Action onClick={() => void run(async () => {
                   const result = await api.demoExecuteEscrow(escrow.id);
                   setDemoResult(result);
+                  const record = result.submission && typeof result.submission === "object"
+                    ? result.submission as Record<string, unknown>
+                    : result;
+                  const summary = typeof record.summary === "string" ? record.summary : "";
+                  const deliverables = Array.isArray(record.deliverables)
+                    ? record.deliverables.filter((value): value is string => typeof value === "string")
+                    : [];
+                  const executor = typeof record.executor === "string" ? record.executor : "deterministic_demo_adapter";
+                  if (summary.trim() && deliverables.length > 0) {
+                    await api.createEscrowSubmission(escrow.id, { summary, deliverables, executor });
+                  }
                   const latest = await api.getEscrowSubmissions(escrow.id);
                   setSubmissions(latest);
-                  setNotice(latest.length
-                    ? `Demo adapter returned; ${latest.length} backend submission record(s) loaded.`
-                    : "Demo adapter request returned, but the backend has not recorded a submission yet.");
+                  if (latest.length) setStep(6);
+                  setNotice(summary.trim() && deliverables.length
+                    ? `Demo adapter output was submitted; ${latest.length} persisted submission record(s) loaded.`
+                    : "Demo adapter returned its response, but it did not contain submission-ready summary and deliverables. No submission data was fabricated.");
                 })} disabled={busy}>Run deterministic demo adapter</Action>
                 {demoResult && <pre className="mt-4 overflow-auto whitespace-pre-wrap rounded-xl border border-white/10 p-4 text-xs text-neutral-300">{JSON.stringify(demoResult,null,2)}</pre>}
                 <div className="mt-6">
@@ -334,22 +343,24 @@ export default function GuidedWorkflowPage() {
                     {item.deliverables?.length > 0 && <ul className="mt-2 list-disc pl-5 text-xs text-neutral-400">{item.deliverables.map((deliverable, index) => <li key={index}>{deliverable}</li>)}</ul>}
                     <p className="mt-2 text-xs text-neutral-500">Executor: {item.executor} · {item.created_at}</p>
                     {item.review_note && <p className="mt-2 text-xs text-neutral-400">Review note: {item.review_note}</p>}
-                    {item.status==="submitted" && <div className="mt-4">
+                    {item.status==="submitted" && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <div className="mt-4">
                       <TextArea label="Buyer review note" value={reviewNote} onChange={setReviewNote} rows={2}/>
                       <div className="flex flex-wrap gap-2">
                         <Action onClick={() => void run(async () => {
                           await api.reviewSubmission(item.id,"approve",reviewNote);
                           setSubmissions(await api.getEscrowSubmissions(escrow.id));
-                          setNotice("Buyer approval recorded by the backend.");
+                          setEscrow(await api.getEscrow(escrow.id));
+                          setNotice("Backend confirmed the submission review decision: approved.");
                         })} disabled={busy||!reviewNote.trim()}>Approve submission</Action>
                         <Action onClick={() => void run(async () => {
                           await api.reviewSubmission(item.id,"reject",reviewNote);
                           setSubmissions(await api.getEscrowSubmissions(escrow.id));
-                          setNotice("Buyer rejection recorded by the backend.");
+                          setEscrow(await api.getEscrow(escrow.id));
+                          setNotice("Backend confirmed the submission review decision: rejected.");
                         })} disabled={busy||!reviewNote.trim()}>Reject submission</Action>
                       </div>
                     </div>}
-                    {item.status==="approved" && escrow.status!=="released" && <Action onClick={() => void run(async () => {
+                    {item.status==="approved" && ["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
                       const openDisputes = await api.listDisputes("open");
                       if (openDisputes.some((dispute) => String(dispute.escrow_id) === String(escrow.id))) {
                         setError("Settlement is blocked while this escrow has an open dispute.");
@@ -361,7 +372,7 @@ export default function GuidedWorkflowPage() {
                       setEscrow(persisted ?? released);
                       setNotice(`Backend confirmed escrow status: ${persisted?.status ?? released.status}. VCR remains simulated credit only.`);
                     })} disabled={busy || String(authState.getUser()?.id) !== String(escrow.buyer_user_id)}>Release to agent owner</Action>}
-                    {["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && <Action onClick={() => void run(async () => {
+                    {["funded", "held", "active"].includes(String(escrow.status).toLowerCase()) && String(authState.getUser()?.id) === String(escrow.buyer_user_id) && <Action onClick={() => void run(async () => {
                       const openDisputes = await api.listDisputes("open");
                       if (openDisputes.some((dispute) => String(dispute.escrow_id) === String(escrow.id))) {
                         setError("A refund request is blocked while this escrow has an open dispute.");
@@ -379,6 +390,7 @@ export default function GuidedWorkflowPage() {
                         const dispute = await api.createSubmissionDispute(item.id, disputeReason);
                         setNotice(`Dispute #${dispute.id} was created by the backend.`);
                         setSubmissions(await api.getEscrowSubmissions(escrow.id));
+                        setEscrow(await api.getEscrow(escrow.id));
                       })} disabled={busy || disputeReason.trim().length < 10}>Raise dispute</Action>
                     </div>}
                   </article>)}
