@@ -121,16 +121,21 @@ export default function GuidedWorkflowPage() {
     if (!agreement) return;
     if (!window.confirm("Accept this versioned agreement? The acceptance will be recorded by the backend.")) return;
     await run(async () => {
-      const version = agreement.current_version_number;
-      await api.acceptAgreement(agreement.id, version);
-      const latest = await api.getAgreement(agreement.id);
+      const version = Number(agreement.current_version_number ?? agreement.proposal_version ?? 1);
+      const accepted = await api.acceptAgreement(agreement.id, version);
+      // Prefer the mutation response: the V2 backend returns accepted_version
+      // and status=accepted, rather than a per-party acceptances collection.
+      let latest = accepted;
+      if (!isAgreementFullyAccepted(latest)) {
+        latest = await api.getAgreement(agreement.id);
+      }
       setAgreement(latest);
       if (isAgreementFullyAccepted(latest)) {
         setStep(4);
-        setNotice("The backend confirms this agreement version is fully accepted. Simulated escrow funding is now available.");
+        setNotice(`Agreement version ${version} is accepted by the backend. Simulated escrow funding is now available.`);
       } else {
         setStep(3);
-        setNotice("Your acceptance request was recorded, but the backend has not confirmed both parties' acceptance. Funding remains blocked.");
+        setNotice(`The backend returned status "${latest.status}" for version ${version}; acceptance is not yet confirmed. Refresh the backend record or review the API error before funding.`);
       }
     });
   }
@@ -309,13 +314,13 @@ export default function GuidedWorkflowPage() {
             {step >= 3 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status} · {formatMoney(agreement.current_version.terms.budget_amount, agreement.current_version.terms.currency)}</p>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number ?? agreement.proposal_version ?? 1} · {agreement.status} · {formatMoney(agreement.current_version?.terms?.budget_amount ?? agreement.terms?.budget_amount, agreement.current_version?.terms?.currency ?? agreement.terms?.currency)}</p>
                 <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
                 {step === 3 && (
                   <div className="mt-4">
                     {isAgreementFullyAccepted(agreement)
                       ? <p className="rounded-lg border border-amber-300/20 bg-amber-300/[0.05] p-3 text-sm text-amber-100">The backend confirms this agreement is accepted. You can proceed to simulated escrow funding.</p>
-                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend confirms acceptance of the current version by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? 1} <ShieldCheck size={16} /></Action></>}
+                      : <><p className="mb-3 rounded-lg border border-white/10 p-3 text-xs text-neutral-400">Funding stays locked until the backend confirms acceptance of the current version by both parties.</p><Action onClick={() => void accept()} disabled={busy}>Accept agreement version {agreement.current_version_number ?? agreement.proposal_version ?? 1} <ShieldCheck size={16} /></Action></>}
                   </div>
                 )}
               </div>
