@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, ArrowUpRight, RefreshCw, Search, ShieldCheck, SlidersHorizontal, Terminal } from "lucide-react";
 import { LiquidButton } from "@/components/animate-ui/buttons/liquid";
 import { ApiAgent, autoEscrowApi } from "@/lib/api";
@@ -17,8 +17,7 @@ function isDemoProfile(agent: ApiAgent) {
 
 export default function MarketplacePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const profileId = searchParams.get("agent");
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [agents, setAgents] = useState<ApiAgent[]>([]);
   const [total, setTotal] = useState(0);
   const [search, setSearch] = useState("");
@@ -53,6 +52,10 @@ export default function MarketplacePage() {
   }, [page, status]);
 
   useEffect(() => { void load(); }, [load]);
+
+  useEffect(() => {
+    setProfileId(new URLSearchParams(window.location.search).get("agent"));
+  }, []);
 
   useEffect(() => {
     if (!profileId) { setProfile(null); setProfileError(""); return; }
