@@ -10,6 +10,7 @@ import {
   ApiMatchRun,
   ApiSubmission,
   ApiVerification,
+  authState,
   isAgreementFullyAccepted,
   AutoEscrowApiError,
   autoEscrowApi,
@@ -55,9 +56,8 @@ interface FlowContextType {
   proposeAgreement: (payload?: ApiAgreementCreateRequest) => Promise<ApiAgreement>;
   acceptCurrentAgreement: () => Promise<ApiAgreement>;
   fundCurrentEscrow: () => Promise<ApiEscrow>;
-  startCurrentExecution: () => Promise<ApiExecution>;
+  startCurrentExecution: () => Promise<Record<string, unknown>>;
   submitCurrentJob: (payload: { submitted_output: string; evidence?: Record<string, unknown>; notes?: string }) => Promise<ApiSubmission>;
-  verifyCurrentJob: () => Promise<ApiVerification>;
   releaseCurrentEscrow: () => Promise<ApiEscrow>;
 }
 
@@ -205,10 +205,12 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
     if (!isAgreementFullyAccepted(acceptedAgreement)) {
       throw new Error("The backend has not confirmed both parties' acceptance. Escrow funding is blocked until the agreement is active.");
     }
-    const createdEscrow = await autoEscrowApi.createEscrow(acceptedAgreement.id);
-    const escrow = await autoEscrowApi.fundEscrow(createdEscrow.id, {
+    const existingEscrow = await autoEscrowApi.getEscrowForAgreement(acceptedAgreement.id);
+    const createdEscrow = existingEscrow ?? await autoEscrowApi.createEscrow(acceptedAgreement.id);
+    const fundedEscrow = await autoEscrowApi.fundEscrow(createdEscrow.id, {
       idempotency_key: `autoescrow:escrow:${createdEscrow.id}:fund:v1`,
     });
+    const escrow = await autoEscrowApi.getEscrow(fundedEscrow.id);
     setSelectedAgent(agent);
     setActiveTransaction({
       ...transactionFromJob(job, agent, match, { agreement: acceptedAgreement, escrow }),
@@ -223,15 +225,11 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
   const refreshActiveTransaction = useCallback(async () => run(async () => {
     if (!activeTransaction.backendJobId || !selectedAgent.backendId) return;
     const job = await autoEscrowApi.getJob(activeTransaction.backendJobId);
-    const [agreement, escrow, execution, verification] = await Promise.all([
+    const [agreement, escrow] = await Promise.all([
       autoEscrowApi.getAgreementForJob(job.id),
       autoEscrowApi.getEscrowForJob(job.id),
-      autoEscrowApi.getExecution(job.id),
-      autoEscrowApi.getVerification(job.id),
     ]);
-    setActiveTransaction(transactionFromJob(job, selectedAgent, undefined, { agreement, escrow, execution, verification }));
-    if (verification?.overall_result === "passed") setVerificationOutcome("PASSED");
-    if (verification?.overall_result === "failed" || verification?.overall_result === "manual_review") setVerificationOutcome("FAILED");
+    setActiveTransaction(transactionFromJob(job, selectedAgent, undefined, { agreement, escrow }));
   }), [activeTransaction.backendJobId, selectedAgent, run]);
 
   const requireJobId = () => {
@@ -280,39 +278,49 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
   });
 
   const startCurrentExecution = async () => run(async () => {
-    const execution = await autoEscrowApi.startExecution(requireJobId());
-    setActiveTransaction((previous) => ({ ...previous, executionStatus: execution.execution_status, status: "EXECUTING" }));
-    return execution;
+    if (!activeTransaction.escrowId) throw new Error("Fund an escrow before running the deterministic demo adapter.");
+    const result = await autoEscrowApi.demoExecuteEscrow(activeTransaction.escrowId);
+    const submissions = await autoEscrowApi.getEscrowSubmissions(activeTransaction.escrowId);
+    if (submissions.length > 0) {
+      setActiveTransaction((previous) => ({ ...previous, status: "VERIFICATION_PENDING", executionStatus: "demo_adapter_submitted" }));
+    }
+    return result;
   });
 
   const submitCurrentJob = async (payload: { submitted_output: string; evidence?: Record<string, unknown>; notes?: string }) => run(async () => {
-    const submission = await autoEscrowApi.submitJob(requireJobId(), {
-      ...payload,
-      agent_id: selectedAgent.backendId,
+    if (!activeTransaction.escrowId) throw new Error("Fund an escrow before submitting deliverables.");
+    const submission = await autoEscrowApi.createEscrowSubmission(activeTransaction.escrowId, {
+      summary: payload.submitted_output,
+      deliverables: [payload.submitted_output],
+      executor: "agent_owner",
     });
     setActiveTransaction((previous) => ({ ...previous, status: "VERIFICATION_PENDING" }));
     return submission;
   });
 
-  const verifyCurrentJob = async () => run(async () => {
-    setVerificationOutcome("IN_PROGRESS");
-    try {
-      const verification = await autoEscrowApi.verifyJob(requireJobId());
-      const passed = verification.overall_result === "passed";
-      setVerificationOutcome(passed ? "PASSED" : "FAILED");
-      setActiveTransaction((previous) => ({ ...previous, verificationId: verification.id, status: passed ? "VERIFICATION_PASSED" : "VERIFICATION_FAILED" }));
-      return verification;
-    } catch (caught) {
-      setVerificationOutcome("FAILED");
-      throw caught;
-    }
-  });
-
   const releaseCurrentEscrow = async () => run(async () => {
     if (!activeTransaction.escrowId) throw new Error("No escrow is active for this task.");
-    const escrow = await autoEscrowApi.releaseEscrow(activeTransaction.escrowId);
+    const escrowId = activeTransaction.escrowId;
+    const currentEscrow = await autoEscrowApi.getEscrow(escrowId);
+    if (String(authState.getUser()?.id) !== String(currentEscrow.buyer_user_id)) {
+      throw new Error("Only the escrow buyer can request settlement.");
+    }
+    const submissions = await autoEscrowApi.getEscrowSubmissions(escrowId);
+    if (!submissions.some((item) => item.status === "approved")) {
+      throw new Error("Release requires an approved submission.");
+    }
+    const openDisputes = await autoEscrowApi.listDisputes("open");
+    if (openDisputes.some((item) => String(item.escrow_id) === String(escrowId))) {
+      throw new Error("Release is blocked while an open dispute exists.");
+    }
+    if (typeof window !== "undefined" && !window.confirm("Release this simulated VCR escrow? This action cannot be undone.")) {
+      throw new Error("Escrow release was cancelled.");
+    }
+    const result = await autoEscrowApi.releaseEscrow(escrowId, `autoescrow:escrow:${escrowId}:release:v1`);
+    const persisted = await autoEscrowApi.getEscrow(escrowId);
+    if (persisted.status !== "released") throw new Error(`The backend returned escrow status: ${persisted.status}. Release is not confirmed.`);
     setTransactionStatus("PAYMENT_RELEASED");
-    return escrow;
+    return persisted ?? result;
   });
 
   const resetSimulation = () => {
@@ -342,7 +350,6 @@ export const FlowProvider = ({ children }: { children: React.ReactNode }) => {
         fundCurrentEscrow,
         startCurrentExecution,
         submitCurrentJob,
-        verifyCurrentJob,
         releaseCurrentEscrow,
       }}
     >
