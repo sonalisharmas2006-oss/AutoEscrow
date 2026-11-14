@@ -148,6 +148,8 @@ export interface ApiAgreement {
   status: string;
   current_version_number?: number;
   current_version?: ApiAgreementVersion;
+  // Legacy V2 backend returns the current terms at the top level.
+  terms?: ApiAgreementTerms;
   versions?: ApiAgreementVersion[];
   acceptances?: ApiAgreementAcceptance[];
   // Legacy V2 backend contract: proposal_version / accepted_version.
