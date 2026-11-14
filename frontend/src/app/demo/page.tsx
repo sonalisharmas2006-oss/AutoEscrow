@@ -315,7 +315,7 @@ export default function GuidedWorkflowPage() {
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Agreement #{agreement.id}</h3>
                 <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number ?? agreement.proposal_version ?? 1} · {agreement.status} · {formatMoney(agreement.current_version?.terms?.budget_amount ?? agreement.terms?.budget_amount, agreement.current_version?.terms?.currency ?? agreement.terms?.currency)}</p>
-                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version.terms, null, 2)}</pre>
+                <pre className="mt-3 overflow-auto whitespace-pre-wrap text-xs text-neutral-300">{JSON.stringify(agreement.current_version?.terms ?? agreement.terms ?? {}, null, 2)}</pre>
                 {step === 3 && (
                   <div className="mt-4">
                     {isAgreementFullyAccepted(agreement)
@@ -329,8 +329,8 @@ export default function GuidedWorkflowPage() {
             {step >= 4 && agreement && (
               <div className="mt-6 rounded-xl border border-white/10 bg-black/20 p-4">
                 <h3 className="font-semibold">Accepted agreement</h3>
-                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number} · {agreement.status}</p>
-                <p className="mt-2 text-xs text-neutral-500">Current version: {agreement.current_version_number} · Acceptance records: {agreement.acceptances.length}</p>
+                <p className="mt-1 text-sm text-neutral-400">Version {agreement.current_version_number ?? agreement.proposal_version ?? 1} · {agreement.status}</p>
+                <p className="mt-2 text-xs text-neutral-500">Current version: {agreement.current_version_number ?? agreement.proposal_version ?? 1} · Accepted version: {agreement.accepted_version ?? "—"}</p>
                 {step === 4 && <Action onClick={() => void fund()} disabled={busy}>Create and fund simulated escrow <LockKeyhole size={16} /></Action>}
               </div>
             )}
