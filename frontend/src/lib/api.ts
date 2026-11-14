@@ -100,23 +100,16 @@ export interface ApiMatchReason {
 }
 
 export interface ApiMatchCandidate {
-  agent_id: string | number;
-  agent_name: string;
-  agent: ApiAgent;
-  score: number;
-  reasons: ApiMatchReason[];
-  explanation: string;
+  agent_id: string | number; agent_name: string; agent?: ApiAgent; score: number;
+  reasons?: ApiMatchReason[]; explanation: string; eligible?: boolean;
+  matched_skills?: string[]; missing_skills?: string[]; breakdown?: Record<string, unknown>;
+  warnings?: string[]; exclusion_reasons?: string[];
 }
 
 export interface ApiMatchRun {
-  matches: ApiMatchCandidate[];
-  weights: Record<string, number>;
-  run_id?: string;
-  scoring_version?: string;
-  computed_at?: string;
-  candidates?: ApiMatchCandidate[];
-  excluded_agents?: ApiMatchCandidate[];
-  job_id?: string | number;
+  matches: ApiMatchCandidate[]; weights?: Record<string, number>; run_id?: string;
+  scoring_version?: string; computed_at?: string; candidates: ApiMatchCandidate[];
+  excluded_agents?: ApiMatchCandidate[]; job_id?: string | number;
 }
 
 export interface ApiAgreementVersion {
@@ -764,8 +757,15 @@ export const autoEscrowApi = {
     });
   },
 
-  createAgreement(jobId: number | string, payload: ApiAgreementCreateRequest) {
-    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body: payload });
+  selectAgent(jobId: number | string, agentId: number | string, runId?: string) {
+    return autoEscrowApi.selectJobAgent(jobId, agentId, runId);
+  },
+
+  createAgreement(jobOrPayload: number | string | ApiAgreementCreateRequest, payload?: ApiAgreementCreateRequest) {
+    const jobId = typeof jobOrPayload === "object" ? jobOrPayload.job_id : jobOrPayload;
+    const body = typeof jobOrPayload === "object" ? jobOrPayload : payload ?? {};
+    if (jobId === undefined || jobId === null) throw new Error("A job ID is required to create an agreement.");
+    return request<ApiAgreement>(`/jobs/${path(jobId)}/agreement`, { method: "POST", body });
   },
 
   getAgreementForJob(jobId: number | string) {
@@ -811,15 +811,15 @@ export const autoEscrowApi = {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}`);
   },
 
-  fundEscrow(jobId: number | string, payload: { idempotency_key: string }) {
+  fundEscrow(jobId: number | string, payload: { idempotency_key: string; reference?: string }) {
     return request<ApiEscrow>(`/jobs/${path(jobId)}/escrow/fund`, { method: "POST", body: payload });
   },
 
-  releaseEscrow(escrowId: number | string, idempotencyKey: string) {
+  releaseEscrow(escrowId: number | string, idempotencyKey = `release-${escrowId}-v1`) {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}/release`, { method: "POST", body: { idempotency_key: idempotencyKey } });
   },
 
-  refundEscrow(escrowId: number | string, idempotencyKey: string) {
+  refundEscrow(escrowId: number | string, idempotencyKey = `refund-${escrowId}-v1`) {
     return request<ApiEscrow>(`/escrows/${path(escrowId)}/refund`, { method: "POST", body: { idempotency_key: idempotencyKey } });
   },
 
