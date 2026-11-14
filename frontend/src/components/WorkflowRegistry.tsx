@@ -156,42 +156,102 @@ export default function WorkflowRegistry({ view }: { view: View }) {
 }
 
 function DisputeQueue() {
-  const [items,setItems]=useState<import("@/lib/api").ApiDispute[]>([]);
-  const [loading,setLoading]=useState(true);
-  const [error,setError]=useState("");
-  const [rationale,setRationale]=useState<Record<string,string>>({});
-  const [busy,setBusy]=useState<string|null>(null);
-  const [message,setMessage]=useState("");
-  const user=authState.getUser();
-  const canResolve=["ADMIN","ARBITRATOR","admin","arbitrator"].includes(user?.role??"");
-  const refresh=async()=>{setLoading(true);setError("");try{setItems(await api.listDisputes("open"));}catch(e){setError(e instanceof Error?e.message:"Could not load open disputes.");}finally{setLoading(false);}};
-  useEffect(()=>{void refresh();},[]);
-  async function resolve(id:string|number,resolution:"release"|"refund"){
-    setBusy(String(id));setError("");setMessage("");
-    try{const result=await api.resolveDispute(id,resolution,rationale[String(id)]??"");
-      setItems(current=>current.filter(item=>item.id!==id));
-      setMessage("Dispute #"+result.id+" resolved by the backend.");
-    }catch(e){setError(e instanceof Error?e.message:"Dispute resolution failed.");}
-    finally{setBusy(null);}
+  const [openItems, setOpenItems] = useState<import("@/lib/api").ApiDispute[]>([]);
+  const [resolvedItems, setResolvedItems] = useState<import("@/lib/api").ApiDispute[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [rationale, setRationale] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const user = authState.getUser();
+  const canResolve = ["ADMIN", "ARBITRATOR", "admin", "arbitrator"].includes(user?.role ?? "");
+
+  const refresh = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const [open, resolved] = await Promise.all([
+        api.listDisputes("open"),
+        api.listDisputes("resolved"),
+      ]);
+      setOpenItems(open);
+      setResolvedItems(resolved);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Could not load dispute records.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { void refresh(); }, []);
+
+  async function resolve(id: string | number, resolution: "release" | "refund") {
+    const note = rationale[String(id)] ?? "";
+    if (note.trim().length < 10) {
+      setError("Resolution note must contain at least 10 characters.");
+      return;
+    }
+    setBusy(String(id));
+    setError("");
+    setMessage("");
+    try {
+      const result = await api.resolveDispute(id, resolution, note);
+      setMessage(`Dispute #${result.id} was marked ${result.status} by the backend. This decision does not itself settle the escrow ledger.`);
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Dispute resolution failed.");
+    } finally {
+      setBusy(null);
+    }
   }
-  return <Workspace title="Dispute management queue" intro="Open disputes returned by the production API. Resolution is available only to authorized ADMIN/ARBITRATOR accounts.">
-    <section className="record-panel">
-      <div className="toolbar"><span>{items.length} open disputes</span><LiquidButton type="button" onClick={()=>void refresh()} disabled={loading} className="px-4 py-2 text-sm">Refresh queue</LiquidButton></div>
-      {loading&&<p role="status" className="empty-panel">Loading open disputes…</p>}
-      {error&&<div role="alert" className="error-panel">{error}</div>}
-      {message&&<div role="status" className="warning-panel">{message}</div>}
-      {!loading&&items.length===0&&<p className="empty-panel">No open disputes were returned.</p>}
-      {items.map(item=><article key={item.id} className="registry-row"><div>
-        <strong>Dispute #{item.id} · {item.status}</strong><p>{item.category} · {item.reason}</p><p>{item.description}</p>
-        <p className="text-xs text-neutral-500">Job #{item.job_id} · Escrow #{item.escrow_id??"—"}</p>
-        {canResolve?<><label className="mt-3 block">Resolution rationale<textarea rows={3} value={rationale[String(item.id)]??""} onChange={e=>setRationale(old=>({...old,[String(item.id)]:e.target.value}))}/></label>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <LiquidButton type="button" disabled={busy!==null||(rationale[String(item.id)]??"").trim().length<10} onClick={()=>void resolve(item.id,"release")} className="px-3 py-2">Resolve: release</LiquidButton>
-            <LiquidButton type="button" disabled={busy!==null||(rationale[String(item.id)]??"").trim().length<10} onClick={()=>void resolve(item.id,"refund")} className="px-3 py-2">Resolve: refund</LiquidButton>
-          </div></>:<p className="mt-3 text-xs text-amber-200">Read-only: sign in with an authorized ADMIN or ARBITRATOR account to resolve disputes.</p>}
-      </div></article>)}
-    </section>
-  </Workspace>;
+
+  return (
+    <Workspace title="Dispute management queue" intro="Open and resolved dispute records returned by the production API. Resolution is available only to authorized ADMIN/ARBITRATOR accounts.">
+      <section className="record-panel">
+        <div className="toolbar">
+          <span>{openItems.length} open · {resolvedItems.length} resolved</span>
+          <LiquidButton type="button" onClick={() => void refresh()} disabled={loading} className="px-4 py-2 text-sm">Refresh queue</LiquidButton>
+        </div>
+        {loading && <p role="status" className="empty-panel">Loading dispute records…</p>}
+        {error && <div role="alert" className="error-panel">{error}</div>}
+        {message && <div role="status" className="warning-panel">{message}</div>}
+        {!loading && openItems.length === 0 && <p className="empty-panel">No open disputes were returned.</p>}
+        {openItems.map((item) => (
+          <article key={item.id} className="registry-row">
+            <div className="min-w-0">
+              <strong>Dispute #{item.id} · {item.status}</strong>
+              <p>{item.category} · {item.reason}</p>
+              <p>{item.description}</p>
+              <p className="text-xs text-neutral-500">Job #{item.job_id} · Escrow #{item.escrow_id ?? "—"}</p>
+              {canResolve ? <>
+                <label className="mt-3 block">Resolution note (at least 10 characters)
+                  <textarea rows={3} value={rationale[String(item.id)] ?? ""} onChange={(event) => setRationale((old) => ({ ...old, [String(item.id)]: event.target.value }))} />
+                </label>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <LiquidButton type="button" disabled={busy !== null || (rationale[String(item.id)] ?? "").trim().length < 10} onClick={() => void resolve(item.id, "release")} className="px-3 py-2">Resolve: release</LiquidButton>
+                  <LiquidButton type="button" disabled={busy !== null || (rationale[String(item.id)] ?? "").trim().length < 10} onClick={() => void resolve(item.id, "refund")} className="px-3 py-2">Resolve: refund</LiquidButton>
+                </div>
+              </> : <p className="mt-3 text-xs text-amber-200">Read-only: sign in with an authorized ADMIN or ARBITRATOR account to resolve disputes.</p>}
+            </div>
+          </article>
+        ))}
+        <div className="mt-8 border-t border-white/10 pt-6">
+          <h2 className="font-semibold">Resolved disputes</h2>
+          {resolvedItems.length === 0 ? <p className="mt-3 text-sm text-neutral-500">No resolved disputes were returned.</p> : resolvedItems.map((item) => (
+            <article key={item.id} className="registry-row">
+              <div className="min-w-0">
+                <strong>Dispute #{item.id} · {item.status}</strong>
+                <p>{item.category} · {item.reason}</p>
+                <p className="text-xs text-neutral-500">Job #{item.job_id} · Escrow #{item.escrow_id ?? "—"} · Resolution: {item.resolution ?? "Not supplied"}</p>
+                {item.resolution_rationale && <p className="mt-1 text-xs text-neutral-400">Resolution note: {item.resolution_rationale}</p>}
+                <p className="mt-1 text-xs text-neutral-500">A dispute decision is not an escrow settlement confirmation. Check the escrow status separately.</p>
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+    </Workspace>
+  );
 }
 
 function JobRecord({ row, view }: { row: Row; view: View }) {
